@@ -13,7 +13,7 @@ A template exist in the "conf" folder.
 
 ### Mandatory
 
-- `av-sched.secret` : secret string exchanged in all API calls. (See [Security](#security) )
+- `av-sched.secret` : secret string exchanged in all API calls. (See [Security](#Security) )
 - `av-sched.db.server`
 - `av-sched.db.port`
 - `av-sched.db.dbName`
@@ -82,28 +82,30 @@ POST host:8086/sched/api/job-def
   },
   "scheduling" : {
     "type" : "cron",
-    "startAt" : 1435579200000, 
     "value" : "0/30 0/1 * 1/1 * ? *"
   }
 }
 ~~~
 
-### Schedule a DATE job
+### Schedule a WAKEUP job
 
 ~~~
 POST host:8086/sched/api/job-def
 {
   "config" : {
    "id" : "av-server/timers",
-   "url" : "http://murphy:3000/echo",
-   "timeout" : 60000
+   "url" : "http://murphy:3000/echo"
   },
   "scheduling" : {
-    "type" : "date",
-    "startAt" : 1435579200000
+    "type" : "wakeup",
+    "value" : 1435579200000
   }
 }
 ~~~
+
+A WAKEUP job can be triggered with a certain delay (many seconds or more).
+These kind of jobs are executed with a limited thread pool and the delay depends on the execution time of each job.
+When a WAKEUP job execution fails then a retry is done with an exponential wait time.
 
 ### Unschedule a job
 
@@ -168,7 +170,7 @@ GET host:8086/sched/api/job
   "scheduling" : {
     "type" : "cron",
     "startAt" : 1435579200000,
-    "value" : "0/30 0/1 * 1/1 * ? *"
+    "value" : ".."
   },
   "lock" : {
     "locked" : true,
@@ -182,8 +184,8 @@ GET host:8086/sched/api/job
     "timeout" : 60000
    },
   "scheduling" : {
-    "type" : "date",
-    "startAt" : 1435579200000
+    "type" : "cron",
+    "value" : ".."
   },
   "lock" : {
     "locked" : true,
@@ -206,7 +208,7 @@ GET host:8086/sched/api/job?jobId=test-job-1426783470991
   "scheduling" : {
     "type" : "cron",
     "startAt" : 1435579200000,
-    "value" : "0/30 0/1 * 1/1 * ? *"
+    "value" : ".."
   },
   "lock" : {
     "locked" : true,
@@ -222,12 +224,12 @@ GET host:8086/sched/api/job?jobId=test-job-1426783470991
 POST localhost:3030/test/test-job-1426783470991
 ~~~
 
-Response (information can be returned by the callback) :
+Response (directive can be returned by the callback) :
 
 ~~~
 {
   "ack" : true,
-  "retry" : 1435579200000
+  "retry" : 30000 // The time to wait before the next fire
 }
 ~~~
 

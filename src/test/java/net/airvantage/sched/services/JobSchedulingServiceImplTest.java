@@ -7,10 +7,12 @@ import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.dao.JobConfigDao;
 import net.airvantage.sched.dao.JobLockDao;
 import net.airvantage.sched.dao.JobSchedulingDao;
+import net.airvantage.sched.dao.JobWakeupDao;
 import net.airvantage.sched.model.JobConfig;
 import net.airvantage.sched.model.JobDef;
 import net.airvantage.sched.model.JobScheduling;
-import net.airvantage.sched.quartz.job.PostHttpJob;
+import net.airvantage.sched.model.JobWakeup;
+import net.airvantage.sched.quartz.job.CronJob;
 import net.airvantage.sched.services.impl.JobSchedulingServiceImpl;
 
 import org.junit.Assert;
@@ -23,7 +25,6 @@ import org.mockito.MockitoAnnotations;
 import org.quartz.CronScheduleBuilder;
 import org.quartz.JobDetail;
 import org.quartz.Scheduler;
-import org.quartz.SimpleScheduleBuilder;
 import org.quartz.Trigger;
 import org.quartz.TriggerKey;
 
@@ -46,15 +47,19 @@ public class JobSchedulingServiceImplTest {
     @Mock
     private JobSchedulingDao jobSchedulingDao;
 
+    @Mock
+    private JobWakeupDao jobWakeupDao;
+
     @Before
     public void setUp() {
 
         MockitoAnnotations.initMocks(this);
-        service = new JobSchedulingServiceImpl(scheduler, jobStateService, jobConfigDao, jobLockDao, jobSchedulingDao);
+        service = new JobSchedulingServiceImpl(scheduler, jobStateService, jobConfigDao, jobLockDao, jobSchedulingDao,
+                jobWakeupDao);
     }
 
     @Test
-    public void scheduleJob_withCron() throws Exception {
+    public void scheduleJob_cron() throws Exception {
 
         // INPUT
 
@@ -76,7 +81,7 @@ public class JobSchedulingServiceImplTest {
         Mockito.verify(this.scheduler).scheduleJob(triggerCaptor.capture());
 
         JobDetail detail = detailCaptor.getValue();
-        Assert.assertEquals(PostHttpJob.class, detail.getJobClass());
+        Assert.assertEquals(CronJob.class, detail.getJobClass());
         Assert.assertEquals(jobId, detail.getKey().getName());
 
         Trigger trigger = triggerCaptor.getValue();
@@ -85,14 +90,14 @@ public class JobSchedulingServiceImplTest {
     }
 
     @Test
-    public void scheduleJob_withDate() throws Exception {
+    public void scheduleJob_wakeup() throws Exception {
 
         // INPUT
 
         String jobId = "jobid";
         long startAt = System.currentTimeMillis();
 
-        JobDef jobDef = TestUtils.dateJobDef(jobId, startAt);
+        JobDef jobDef = TestUtils.wakeupJobDef(jobId, startAt);
 
         // RUN
 
@@ -100,36 +105,25 @@ public class JobSchedulingServiceImplTest {
 
         // VERIFY
 
-        Mockito.verify(jobConfigDao).persist(Mockito.eq(jobDef.getConfig()));
-
-        ArgumentCaptor<JobDetail> detailCaptor = ArgumentCaptor.forClass(JobDetail.class);
-        Mockito.verify(this.scheduler).addJob(detailCaptor.capture(), Mockito.eq(true));
+        ArgumentCaptor<JobWakeup> wakeupCaptor = ArgumentCaptor.forClass(JobWakeup.class);
+        Mockito.verify(jobWakeupDao).persist(wakeupCaptor.capture());
         
-        ArgumentCaptor<Trigger> triggerCaptor = ArgumentCaptor.forClass(Trigger.class);
-        Mockito.verify(this.scheduler).scheduleJob(triggerCaptor.capture());
-
-        JobDetail detail = detailCaptor.getValue();
-        Assert.assertEquals(PostHttpJob.class, detail.getJobClass());
-        Assert.assertEquals(jobId, detail.getKey().getName());
-
-        Trigger trigger = triggerCaptor.getValue();
-        Assert.assertEquals(SimpleScheduleBuilder.class, trigger.getScheduleBuilder().getClass());
-        Assert.assertEquals(startAt, trigger.getStartTime().getTime());
-        Assert.assertEquals(detail.getKey(), trigger.getJobKey());
+        JobWakeup wakeup = wakeupCaptor.getValue();
+        Assert.assertEquals(jobId, wakeup.getId());
+        Assert.assertEquals(jobDef.getScheduling().getValue(), wakeup.getWakeupTime().toString());
+        Assert.assertEquals(jobDef.getConfig().getUrl(), wakeup.getCallback());
     }
 
     @Test
-    public void scheduleJob_alreadyExists() throws Exception {
+    public void scheduleJob_cronAlreadyExists() throws Exception {
 
         // INPUT
 
         String jobId = "jobid";
-        long startAt = System.currentTimeMillis();
+        JobDef jobDef = TestUtils.cronJobDef(jobId, "0 0 6 1 1/12 ? *");
 
-        JobDef jobDef = TestUtils.dateJobDef(jobId, startAt);
-        
         // MOCK
-        
+
         Mockito.when(scheduler.checkExists(Mockito.any(TriggerKey.class))).thenReturn(true);
 
         // RUN
@@ -142,17 +136,16 @@ public class JobSchedulingServiceImplTest {
 
         ArgumentCaptor<JobDetail> detailCaptor = ArgumentCaptor.forClass(JobDetail.class);
         Mockito.verify(this.scheduler).addJob(detailCaptor.capture(), Mockito.eq(true));
-        
+
         ArgumentCaptor<Trigger> triggerCaptor = ArgumentCaptor.forClass(Trigger.class);
         Mockito.verify(this.scheduler).rescheduleJob(Mockito.any(TriggerKey.class), triggerCaptor.capture());
 
         JobDetail detail = detailCaptor.getValue();
-        Assert.assertEquals(PostHttpJob.class, detail.getJobClass());
+        Assert.assertEquals(CronJob.class, detail.getJobClass());
         Assert.assertEquals(jobId, detail.getKey().getName());
 
         Trigger trigger = triggerCaptor.getValue();
-        Assert.assertEquals(SimpleScheduleBuilder.class, trigger.getScheduleBuilder().getClass());
-        Assert.assertEquals(startAt, trigger.getStartTime().getTime());
+        Assert.assertEquals(CronScheduleBuilder.class, trigger.getScheduleBuilder().getClass());
         Assert.assertEquals(detail.getKey(), trigger.getJobKey());
     }
 

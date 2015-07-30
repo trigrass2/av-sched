@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum JobSchedulingType {
     
-    CRON("cron"), // A cron to define the scheduling period
-    DATE("date"); // A date when the job should be run
+    CRON("cron"),
+    WAKEUP("wakeup");
     
     private String key;
 

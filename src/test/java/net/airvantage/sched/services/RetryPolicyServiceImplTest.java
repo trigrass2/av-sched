@@ -2,11 +2,12 @@ package net.airvantage.sched.services;
 
 import net.airvantage.sched.TestUtils;
 import net.airvantage.sched.app.exceptions.AppException;
-import net.airvantage.sched.model.JobDef;
+import net.airvantage.sched.dao.JobWakeupDao;
 import net.airvantage.sched.model.JobState;
+import net.airvantage.sched.model.JobWakeup;
 import net.airvantage.sched.quartz.job.JobResult;
 import net.airvantage.sched.quartz.job.JobResult.CallbackStatus;
-import net.airvantage.sched.services.impl.RetryPolicyServiceImpl;
+import net.airvantage.sched.services.tech.RetryPolicyHelper;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -18,7 +19,10 @@ import org.mockito.MockitoAnnotations;
 
 public class RetryPolicyServiceImplTest {
 
-    private RetryPolicyServiceImpl service;
+    private RetryPolicyHelper service;
+
+    @Mock
+    private JobWakeupDao jobWakeupDao;
 
     @Mock
     private JobStateService jobStateService;
@@ -29,7 +33,7 @@ public class RetryPolicyServiceImplTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        service = new RetryPolicyServiceImpl(jobStateService, jobSchedulingService);
+        service = new RetryPolicyHelper(jobStateService, jobSchedulingService, jobWakeupDao);
     }
 
     @Test
@@ -46,59 +50,32 @@ public class RetryPolicyServiceImplTest {
 
         Mockito.when(result.getStatus()).thenReturn(CallbackStatus.SUCCESS);
         Mockito.when(result.getJobId()).thenReturn(jobId);
-        Mockito.when(result.isAck()).thenReturn(false);
+        Mockito.when(result.isAck()).thenReturn(true);
         Mockito.when(result.getRetry()).thenReturn(0l);
 
         Mockito.when(jobStateService.find(jobId)).thenReturn(state);
 
         // RUN
 
-        service.jobExecuted(result);
+        service.handleResult(result);
 
         // VERIFY
 
-        Mockito.verifyNoMoreInteractions(jobSchedulingService);
+        Mockito.verify(jobSchedulingService).ackJob(jobId);
     }
 
     @Test
-    public void jobExecuted_dateJobSuccess() throws AppException {
+    public void jobExecuted_wakeupJobSuccess() throws AppException {
 
         // INPUT
 
-        String jobId = "jobid";
-        JobState state = TestUtils.dateJobState(jobId);
+        String jobId = "job.id";
+        String callback = "callback.url";
 
-        // MOCK
-
-        JobResult result = Mockito.mock(JobResult.class);
-
-        Mockito.when(result.getStatus()).thenReturn(CallbackStatus.SUCCESS);
-        Mockito.when(result.getJobId()).thenReturn(jobId);
-        Mockito.when(result.isAck()).thenReturn(false);
-        Mockito.when(result.getRetry()).thenReturn(0l);
-
-        Mockito.when(jobStateService.find(jobId)).thenReturn(state);
-
-        // RUN
-
-        service.jobExecuted(result);
-
-        // VERIFY
-
-        ArgumentCaptor<JobDef> captor = ArgumentCaptor.forClass(JobDef.class);
-        Mockito.verify(jobSchedulingService).scheduleJob(captor.capture());
-
-        JobDef jobDef = captor.getValue();
-        Assert.assertTrue(System.currentTimeMillis() < jobDef.getScheduling().getStartAt());
-    }
-
-    @Test
-    public void jobExecuted_jobAutoAck() throws AppException {
-
-        // INPUT
-
-        String jobId = "jobid";
-        JobState state = TestUtils.dateJobState(jobId);
+        JobWakeup wakeup = new JobWakeup();
+        wakeup.setId(jobId);
+        wakeup.setWakeupTime(123l);
+        wakeup.setCallback(callback);
 
         // MOCK
 
@@ -109,27 +86,30 @@ public class RetryPolicyServiceImplTest {
         Mockito.when(result.isAck()).thenReturn(true);
         Mockito.when(result.getRetry()).thenReturn(0l);
 
-        Mockito.when(jobStateService.find(jobId)).thenReturn(state);
-
         // RUN
 
-        service.jobExecuted(result);
+        service.handleResult(wakeup, result);
 
         // VERIFY
 
-        Mockito.verify(jobSchedulingService).ackJob(jobId);
+        Mockito.verify(jobWakeupDao).delete(jobId);
     }
 
     @Test
-    public void jobExecuted_jobRetryPeriod() throws AppException {
+    public void jobExecuted_wakeupJobRetry() throws AppException {
 
         // INPUT
 
-        String jobId = "jobid";
-        JobState state = TestUtils.dateJobState(jobId);
+        String jobId = "job.id";
+        String callback = "callback.url";
+
+        JobWakeup wakeup = new JobWakeup();
+        wakeup.setId(jobId);
+        wakeup.setWakeupTime(123l);
+        wakeup.setCallback(callback);
 
         long now = System.currentTimeMillis();
-        long delay = 600_000l;
+        long delay = 30_000l;
 
         // MOCK
 
@@ -140,19 +120,60 @@ public class RetryPolicyServiceImplTest {
         Mockito.when(result.isAck()).thenReturn(false);
         Mockito.when(result.getRetry()).thenReturn(delay);
 
-        Mockito.when(jobStateService.find(jobId)).thenReturn(state);
-
         // RUN
 
-        service.jobExecuted(result);
+        service.handleResult(wakeup, result);
 
         // VERIFY
 
-        ArgumentCaptor<JobDef> captor = ArgumentCaptor.forClass(JobDef.class);
-        Mockito.verify(jobSchedulingService).scheduleJob(captor.capture());
+        ArgumentCaptor<JobWakeup> captor = ArgumentCaptor.forClass(JobWakeup.class);
+        Mockito.verify(jobWakeupDao).persist(captor.capture());
 
-        JobDef jobDef = captor.getValue();
-        Assert.assertTrue((now + delay) <= jobDef.getScheduling().getStartAt());
+        JobWakeup actual = captor.getValue();
+        Assert.assertTrue((now + delay) <= actual.getWakeupTime());
+    }
+
+    @Test
+    public void jobExecuted_wakeupJobManyRetry() throws AppException {
+
+        // INPUT
+
+        String jobId = "job.id";
+        String callback = "callback.url";
+
+        JobWakeup wakeup = new JobWakeup();
+        wakeup.setId(jobId);
+        wakeup.setWakeupTime(123l);
+        wakeup.setCallback(callback);
+
+        long now = System.currentTimeMillis();
+        long delay = 30_000l;
+
+        // MOCK
+
+        JobResult result = Mockito.mock(JobResult.class);
+
+        Mockito.when(result.getStatus()).thenReturn(CallbackStatus.SUCCESS);
+        Mockito.when(result.getJobId()).thenReturn(jobId);
+        Mockito.when(result.isAck()).thenReturn(false);
+        Mockito.when(result.getRetry()).thenReturn(delay);
+
+        // RUN
+
+        service.handleResult(wakeup, result);
+        service.handleResult(wakeup, result); // 1 x retry
+        service.handleResult(wakeup, result); // 2 x retry
+        service.handleResult(wakeup, result); // 3 x retry
+        service.handleResult(wakeup, result); // 4 x retry
+
+        // VERIFY
+
+        ArgumentCaptor<JobWakeup> captor = ArgumentCaptor.forClass(JobWakeup.class);
+        Mockito.verify(jobWakeupDao, Mockito.times(5)).persist(captor.capture());
+
+        JobWakeup actual = captor.getValue();
+        long wakeupTime = now + delay + (4 * RetryPolicyHelper.DEFAULT_RETRY_DELAY_MS);
+        Assert.assertTrue(wakeupTime <= actual.getWakeupTime());
     }
 
     @Test
@@ -171,13 +192,12 @@ public class RetryPolicyServiceImplTest {
         Mockito.when(result.getJobId()).thenReturn(jobId);
         Mockito.when(result.isAck()).thenReturn(false);
         Mockito.when(result.getRetry()).thenReturn(0l);
-        Mockito.when(result.getNbErrors()).thenReturn(1);
 
         Mockito.when(jobStateService.find(jobId)).thenReturn(state);
 
         // RUN
 
-        service.jobExecuted(result);
+        service.handleResult(result);
 
         // VERIFY
 
@@ -185,13 +205,20 @@ public class RetryPolicyServiceImplTest {
     }
 
     @Test
-    public void triggerComplete_dateJobFailed() throws AppException {
+    public void triggerComplete_wakeupJobFailed() throws AppException {
 
         // INPUT
 
-        String jobId = "jobid";
-        JobState state = TestUtils.dateJobState(jobId);
+        String jobId = "job.id";
+        String callback = "callback.url";
 
+        JobWakeup wakeup = new JobWakeup();
+        wakeup.setId(jobId);
+        wakeup.setWakeupTime(123l);
+        wakeup.setCallback(callback);
+
+        long now = System.currentTimeMillis();
+        
         // MOCK
 
         JobResult result = Mockito.mock(JobResult.class);
@@ -200,21 +227,19 @@ public class RetryPolicyServiceImplTest {
         Mockito.when(result.getJobId()).thenReturn(jobId);
         Mockito.when(result.isAck()).thenReturn(false);
         Mockito.when(result.getRetry()).thenReturn(0l);
-        Mockito.when(result.getNbErrors()).thenReturn(1);
-
-        Mockito.when(jobStateService.find(jobId)).thenReturn(state);
 
         // RUN
 
-        service.jobExecuted(result);
+        service.handleResult(wakeup, result);
 
         // VERIFY
 
-        ArgumentCaptor<JobDef> captor = ArgumentCaptor.forClass(JobDef.class);
-        Mockito.verify(jobSchedulingService).scheduleJob(captor.capture());
+        ArgumentCaptor<JobWakeup> captor = ArgumentCaptor.forClass(JobWakeup.class);
+        Mockito.verify(jobWakeupDao).persist(captor.capture());
 
-        JobDef jobDef = captor.getValue();
-        Assert.assertTrue(System.currentTimeMillis() < jobDef.getScheduling().getStartAt());
+        JobWakeup actual = captor.getValue();
+        long wakeupTime = now + RetryPolicyHelper.DEFAULT_ERROR_DELAY_MS;
+        Assert.assertTrue(wakeupTime <= actual.getWakeupTime());
     }
-    
+
 }

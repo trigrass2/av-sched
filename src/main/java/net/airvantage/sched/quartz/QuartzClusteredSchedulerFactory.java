@@ -27,8 +27,6 @@ public class QuartzClusteredSchedulerFactory {
         props.put("org.quartz.threadPool.threadPriority", "5");
 
         // JobStore
-        props.put("org.quartz.jobStore.misfireThreshold", "60000");
-
         props.put("org.quartz.jobStore.class", "org.quartz.impl.jdbcjobstore.JobStoreTX");
         props.put("org.quartz.jobStore.driverDelegateClass", "org.quartz.impl.jdbcjobstore.StdJDBCDelegate");
         props.put("org.quartz.jobStore.useProperties", false);
@@ -37,6 +35,9 @@ public class QuartzClusteredSchedulerFactory {
 
         props.put("org.quartz.jobStore.isClustered", "true");
         props.put("org.quartz.jobStore.clusterCheckinInterval", "20000");
+
+        props.put("org.quartz.jobStore.misfireThreshold", "60000");
+        props.put("org.quartz.jobStore.maxMisfiresToHandleAtATime", "20");
 
         // DB
         String jdbcUrl = "jdbc:mysql://" + config.getString("av-sched.db.server") + ":"

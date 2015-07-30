@@ -14,7 +14,6 @@ import net.airvantage.sched.app.mapper.JsonMapper;
 import net.airvantage.sched.model.JobId;
 import net.airvantage.sched.services.JobSchedulingService;
 
-import org.quartz.SchedulerException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,13 +35,8 @@ public class JobActionServlet extends HttpServlet {
     public void init() throws ServletException {
         super.init();
 
-        try {
-            jobService = ServiceLocator.getInstance().getJobService();
-            jsonMapper = ServiceLocator.getInstance().getJsonMapper();
-
-        } catch (SchedulerException e) {
-            throw new ServletException(e);
-        }
+        jobService = ServiceLocator.getInstance().getJobSchedulingService();
+        jsonMapper = ServiceLocator.getInstance().getJsonMapper();
     }
 
     @Override

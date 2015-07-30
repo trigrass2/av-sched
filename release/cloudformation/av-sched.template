@@ -23,17 +23,23 @@
         "AlarmSNSTopic" :           { "Type" : "String", "Description" : "from net stack" },
 
         "Version" : {
-            "Description" : "The version of the application: used to pull docker image.",
+            "Description" : "The version of the application",
             "Type" : "String"
         },
 
         "InstanceType" : {
             "Description" : "EC2 instance type",
             "Type" : "String",
-            "Default" : "t2.medium",
+            "Default" : "t2.small",
             "AllowedValues" : [ "t2.micro", "t2.small", "t2.medium", "m3.medium", "m3.large", "m3.xlarge", "m3.2xlarge" ],
             "ConstraintDescription" : "must be a valid EC2 instance type."
         },
+
+        "InstanceNumber": {
+            "Description" : "Number of Amazon EC2 instance for AvSched application",
+            "Type"        : "Number",
+            "Default"     : 2
+        },        
 
         "DBUser" : {
             "Description" : "Database user",
@@ -52,7 +58,7 @@
         "HealthCheckGracePeriod" : {
             "Description" : "AutoScalingGroup HealthCheckGracePeriod property (seconds)",
             "Type" : "Number",
-            "Default" : 1200
+            "Default" : 900
         },
 
         "AvSchedSecret": {
@@ -81,32 +87,30 @@
         "AvSchedELB": {
             "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
             "Properties": {
-                "LoadBalancerName": { "Fn::Join" : ["", [ { "Ref": "EnvName" }, "-av-sched-elb" ] ] },
-                "SecurityGroups": [{"Ref": "PrivateSecurityGroup"}],
-                "Scheme" : "internal",
-                "CrossZone": true,
-                "Subnets": [
-                    { "Ref": "PrivateSubnetA" },
-                    { "Ref": "PrivateSubnetB" },
-                    { "Ref": "PrivateSubnetC" }
-                ],
+                "LoadBalancerName" : { "Fn::Join" : ["", [ { "Ref": "EnvName" }, "-av-sched-elb" ] ] },
+                "SecurityGroups"   : [{"Ref": "PrivateSecurityGroup"}],
+                "Scheme"           : "internal",
+                "CrossZone"        : true,
+                "Subnets"          : [ { "Ref": "PrivateSubnetA" }, { "Ref": "PrivateSubnetB" }, { "Ref": "PrivateSubnetC" } ],
                 "HealthCheck": {
-                    "Target": "HTTP:8086/sched/check",
-                    "Timeout": 2,
-                    "Interval": 5,
-                    "UnhealthyThreshold": 6,
-                    "HealthyThreshold": 2
+                    "Target"             : "HTTP:8086/sched/check",
+                    "Timeout"            : 2,
+                    "Interval"           : 5,
+                    "UnhealthyThreshold" : 5,
+                    "HealthyThreshold"   : 2
                 },
+                "ConnectionSettings"       : { "IdleTimeout" : 300 },
+                "ConnectionDrainingPolicy" : { "Enabled" : true, "Timeout" : 60 },
                 "Listeners": [ {
-                    "InstancePort": 8086,
-                    "LoadBalancerPort": 80,
-                    "Protocol": "HTTP"
-                } ],
+                    "InstancePort"     : 8086,
+                    "LoadBalancerPort" : 80,
+                    "Protocol"         : "HTTP"
+                } ],                
                 "AccessLoggingPolicy": {
-                    "S3BucketName": { "Ref": "S3LoggingBucket" },
-                    "S3BucketPrefix": "elb-access-logs/av-sched",
-                    "Enabled": "true",
-                    "EmitInterval" : "5"
+                    "S3BucketName"   : { "Ref": "S3LoggingBucket" },
+                    "S3BucketPrefix" : "elb-access-logs/av-sched",
+                    "Enabled"        : "true",
+                    "EmitInterval"   : "5"
                 }
             }
         },
@@ -114,29 +118,26 @@
         "AvSchedAutoScale": {
             "Type": "AWS::AutoScaling::AutoScalingGroup",
             "Properties": {
-                "AvailabilityZones": { "Fn::GetAZs": "" },
-                "VPCZoneIdentifier": [
-                    { "Ref": "PrivateSubnetA" },
-                    { "Ref": "PrivateSubnetB" },
-                    { "Ref": "PrivateSubnetC" }
-                ],
-                "HealthCheckGracePeriod": {"Ref": "HealthCheckGracePeriod"},
-                "HealthCheckType": "ELB",
-                "LaunchConfigurationName": { "Ref": "AvSchedLaunchConfig" },
-                "LoadBalancerNames": [ { "Ref": "AvSchedELB" } ],
-                "MaxSize": 2,
-                "MinSize": 1,
-                "DesiredCapacity": 1,
+                "AvailabilityZones"       : { "Fn::GetAZs": "" },
+                "VPCZoneIdentifier"       : [ { "Ref": "PrivateSubnetA" }, { "Ref": "PrivateSubnetB" }, { "Ref": "PrivateSubnetC" } ],
+                "HealthCheckGracePeriod"  : {"Ref": "HealthCheckGracePeriod"},
+                "HealthCheckType"         : "ELB",
+                "LaunchConfigurationName" : { "Ref": "AvSchedLaunchConfig" },
+                "LoadBalancerNames"       : [ { "Ref": "AvSchedELB" } ],
+                "MaxSize"                 : 10,
+                "MinSize"                 : { "Ref": "InstanceNumber" },
+                "DesiredCapacity"         : { "Ref": "InstanceNumber" },
                 "Tags": [ {
-                    "Key": "Name",
-                    "Value": { "Fn::Join" : ["", [ { "Ref": "EnvName" }, "-av-sched-asg" ] ] },
-                    "PropagateAtLaunch": true
+                    "Key"               : "Name",
+                    "Value"             : { "Fn::Join" : ["", [ { "Ref": "EnvName" }, "-av-sched-asg" ] ] },
+                    "PropagateAtLaunch" : true
                 } ]
             },
             "UpdatePolicy": {
                 "AutoScalingRollingUpdate": {
-                    "MaxBatchSize": 1,
-                    "PauseTime": "PT5M"
+                    "MaxBatchSize"          : 1,
+                    "MinInstancesInService" : { "Ref": "InstanceNumber" },
+                    "PauseTime"             : "PT5M"
                 }
             }
         },
@@ -200,11 +201,43 @@
                 "EvaluationPeriods": "2",
                 "Threshold": "0.25",
                 "AlarmActions": [ { "Ref": "AlarmSNSTopic" } ],
-                "Dimensions": [
-                    { "Name": "LoadBalancerName", "Value": { "Ref": "AvSchedELB" } }
-                ],
+                "Dimensions": [ { "Name": "LoadBalancerName", "Value": { "Ref": "AvSchedELB" } } ],
                 "ComparisonOperator": "GreaterThanThreshold",
                 "Unit": "Count"
+            }
+        },
+
+        "AvSchedErrorsAlarm": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription"   : "Alarm to notify when AvSched returned errors",
+                "MetricName"         : "HTTPCode_Backend_5XX",
+                "Namespace"          : "AWS/ELB",
+                "Statistic"          : "Sum",
+                "Period"             : "60",
+                "EvaluationPeriods"  : "3",
+                "Threshold"          : "3",
+                "AlarmActions"       : [ { "Ref": "AlarmSNSTopic" } ],
+                "Dimensions"         : [ { "Name": "LoadBalancerName", "Value": { "Ref": "AvSchedELB" }} ],
+                "ComparisonOperator" : "GreaterThanThreshold",
+                "Unit"               : "Count"
+            }
+        },
+
+        "AvSchedCpuUsageAlarm": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription"   : "Alarm to notify when AvSched CPU usage is too high",
+                "MetricName"         : "CPUUtilization",
+                "Namespace"          : "AWS/EC2",
+                "Statistic"          : "Average",
+                "Period"             : "60",
+                "EvaluationPeriods"  : "15",
+                "Threshold"          : "80",
+                "AlarmActions"       : [ { "Ref": "AlarmSNSTopic" } ],
+                "Dimensions"         : [ { "Name": "AutoScalingGroupName", "Value": { "Ref": "AvSchedAutoScale" }} ],
+                "ComparisonOperator" : "GreaterThanThreshold",
+                "Unit"               : "Percent"
             }
         },
 

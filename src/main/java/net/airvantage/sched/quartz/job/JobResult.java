@@ -7,7 +7,6 @@ public class JobResult {
     };
 
     private CallbackStatus status;
-    private int nbErrors;
     private String jobId;
     private boolean ack;
     private long retry;
@@ -44,21 +43,11 @@ public class JobResult {
         this.retry = retry;
     }
 
-    public int getNbErrors() {
-        return nbErrors;
-    }
-
-    public void setNbErrors(int nbErrors) {
-        this.nbErrors = nbErrors;
-    }
-
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("JobResult [status=");
         builder.append(status);
-        builder.append(", nbErrors=");
-        builder.append(nbErrors);
         builder.append(", jobId=");
         builder.append(jobId);
         builder.append(", ack=");

@@ -8,7 +8,6 @@ import java.util.Map;
 import javax.sql.DataSource;
 
 import net.airvantage.sched.model.JobConfig;
-import net.airvantage.sched.services.impl.JobSchedulingServiceImpl;
 
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;

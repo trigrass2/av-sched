@@ -7,17 +7,16 @@ import net.airvantage.sched.services.JobStateService;
 
 import org.quartz.JobExecutionContext;
 import org.quartz.Trigger;
-import org.quartz.Trigger.CompletedExecutionInstruction;
-import org.quartz.TriggerListener;
+import org.quartz.listeners.TriggerListenerSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * A listener to apply lock policy : no job will be executed if a lock is already active.
  */
-public class LockTriggerListener implements TriggerListener {
+public class DefaultTriggerListener extends TriggerListenerSupport {
 
-    private static final Logger LOG = LoggerFactory.getLogger(LockTriggerListener.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DefaultTriggerListener.class);
 
     private JobStateService jobStateService;
 
@@ -26,7 +25,7 @@ public class LockTriggerListener implements TriggerListener {
         return "lockTriggerListener";
     }
 
-    public LockTriggerListener(JobStateService jobStateService) {
+    public DefaultTriggerListener(JobStateService jobStateService) {
 
         this.jobStateService = jobStateService;
     }
@@ -57,25 +56,6 @@ public class LockTriggerListener implements TriggerListener {
             LOG.error("Unable to veto job execution", e);
         }
         return false;
-    }
-
-    @Override
-    public void triggerFired(Trigger trigger, JobExecutionContext context) {
-
-        // Nothing todo
-    }
-
-    @Override
-    public void triggerMisfired(Trigger trigger) {
-
-        // Nothing todo
-    }
-
-    @Override
-    public void triggerComplete(Trigger trigger, JobExecutionContext context,
-            CompletedExecutionInstruction triggerInstructionCode) {
-
-        // Nothing todo
     }
 
 }

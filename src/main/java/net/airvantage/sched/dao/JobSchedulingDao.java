@@ -34,7 +34,6 @@ public class JobSchedulingDao {
 
         JobScheduling jobScheduling = null;
 
-        // K Set<TriggerKey> triggerKeys = scheduler.getTriggerKeys(GroupMatcher.groupEquals(jobId));
         List<? extends Trigger> triggersOfJob = scheduler.getTriggersOfJob(new JobKey(jobId));
         if (triggersOfJob != null && !triggersOfJob.isEmpty()) {
 
@@ -91,8 +90,6 @@ public class JobSchedulingDao {
             CronTriggerImpl cronTrigger = (CronTriggerImpl) trigger;
             sched.setValue(cronTrigger.getCronExpression());
 
-        } else {
-            sched.setType(JobSchedulingType.DATE);
         }
 
         return new JobSchedulingWithId(jobId, sched);

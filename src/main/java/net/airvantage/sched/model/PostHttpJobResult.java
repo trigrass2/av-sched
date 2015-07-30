@@ -1,4 +1,4 @@
-package net.airvantage.sched.quartz.job;
+package net.airvantage.sched.model;
 
 /**
  * A bean to deserialize JSON content returned by callback.

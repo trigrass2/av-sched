@@ -45,11 +45,12 @@ public class Launcher {
             
             if (shouldClean(args)) {
                 LOG.warn("Clean storage - all data is deleting.");
-                ServiceLocator.getInstance().getJobService().deleteJob();
+                ServiceLocator.getInstance().getJobSchedulingService().clearJobs();
             }
 
             // Start AvSched application
-
+            
+            ServiceLocator.getInstance().servicesPreload();
             server = createAndConfigureServer();
             server.start();
 
@@ -82,9 +83,9 @@ public class Launcher {
 
         // Configure thread pool
 
-        BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(500);
-        QueuedThreadPool pool = new QueuedThreadPool(25, 25, 60_000, queue);
-        pool.setStopTimeout(1_000);
+        BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(5000);
+        QueuedThreadPool pool = new QueuedThreadPool(50, 50, 60_000, queue);
+        pool.setStopTimeout(30_000);
 
         Server server = new Server(pool);
 

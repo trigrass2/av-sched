@@ -24,13 +24,8 @@ public class HealthCheckServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
 
-        try {
-            jsonMapper = ServiceLocator.getInstance().getJsonMapper();
-            scheduler = ServiceLocator.getInstance().getScheduler();
-
-        } catch (SchedulerException e) {
-            throw new ServletException(e);
-        }
+        jsonMapper = ServiceLocator.getInstance().getJsonMapper();
+        scheduler = ServiceLocator.getInstance().getScheduler();
     }
 
     @Override

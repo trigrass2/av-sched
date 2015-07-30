@@ -75,7 +75,7 @@ var sched = {
 
     wakeupJob: function(state, id, date, timeout, secret) {
         return function() {
-            sched.log("Scheduling DATE job on port", state.port, "with id", id);
+            sched.log("Scheduling WAKEUP job on port", state.port, "with id", id);
             return rp({
                 uri: "http://localhost:8086/sched/api/job-def",
                 method: "POST",
@@ -89,8 +89,8 @@ var sched = {
                         timeout: timeout
                     },
                     scheduling: {
-                        type: "date",
-                        startAt: date
+                        type: "wakeup",
+                        value: "" + date
                     }
                 })
             });
@@ -229,7 +229,7 @@ var sched = {
                 if (test && test.scheduling) {
                     assert.deepEqual(test.scheduling.type, job.scheduling.type, "Expected job scheduling type : " + test.scheduling);
                     assert.deepEqual(test.scheduling.value, job.scheduling.value, "Expected job scheduling value : " + test.scheduling);
-                    assert.ok(job.scheduling.startAt != null, "Expected not null job scheduling startAt.");
+                    assert.ok(job.scheduling.startAt !== null, "Expected not null job scheduling startAt.");
                 }
             });
         };

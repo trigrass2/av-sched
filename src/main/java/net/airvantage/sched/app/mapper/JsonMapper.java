@@ -6,7 +6,7 @@ import java.io.InputStream;
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.model.JobDef;
 import net.airvantage.sched.model.JobId;
-import net.airvantage.sched.quartz.job.PostHttpJobResult;
+import net.airvantage.sched.model.PostHttpJobResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;

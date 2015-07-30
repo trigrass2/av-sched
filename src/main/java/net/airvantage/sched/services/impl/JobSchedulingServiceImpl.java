@@ -1,29 +1,33 @@
 package net.airvantage.sched.services.impl;
 
-import java.sql.SQLException;
-import java.util.ArrayList;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 
 import net.airvantage.sched.app.exceptions.AppException;
-import net.airvantage.sched.app.exceptions.AppExceptions;
 import net.airvantage.sched.dao.JobConfigDao;
 import net.airvantage.sched.dao.JobLockDao;
 import net.airvantage.sched.dao.JobSchedulingDao;
+import net.airvantage.sched.dao.JobWakeupDao;
 import net.airvantage.sched.model.JobConfig;
 import net.airvantage.sched.model.JobDef;
 import net.airvantage.sched.model.JobLock;
 import net.airvantage.sched.model.JobScheduling;
 import net.airvantage.sched.model.JobSchedulingType;
 import net.airvantage.sched.model.JobState;
-import net.airvantage.sched.quartz.job.PostHttpJob;
+import net.airvantage.sched.model.JobWakeup;
+import net.airvantage.sched.quartz.job.CronJob;
+import net.airvantage.sched.quartz.job.WakeupJob;
 import net.airvantage.sched.services.JobSchedulingService;
 import net.airvantage.sched.services.JobStateService;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
+import org.apache.commons.lang.math.NumberUtils;
+import org.quartz.CronExpression;
 import org.quartz.CronScheduleBuilder;
+import org.quartz.Job;
 import org.quartz.JobBuilder;
 import org.quartz.JobDetail;
 import org.quartz.JobKey;
@@ -48,19 +52,43 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
 
     private JobLockDao jobLockDao;
     private JobConfigDao jobConfigDao;
+    private JobWakeupDao jobWakeupDao;
     private JobSchedulingDao jobSchedulingDao;
 
     // ------------------------------------------------ Constructors --------------------------------------------------
 
     public JobSchedulingServiceImpl(Scheduler scheduler, JobStateService jobStateService, JobConfigDao jobConfigDao,
-            JobLockDao jobLockDao, JobSchedulingDao jobSchedulingDao) {
+            JobLockDao jobLockDao, JobSchedulingDao jobSchedulingDao, JobWakeupDao jobWakeupDao) {
 
         this.scheduler = scheduler;
         this.jobStateService = jobStateService;
 
         this.jobLockDao = jobLockDao;
         this.jobConfigDao = jobConfigDao;
+        this.jobWakeupDao = jobWakeupDao;
         this.jobSchedulingDao = jobSchedulingDao;
+    }
+
+    public void loadInternalJobs() throws AppException {
+
+        try {
+            JobDef jobDef = new JobDef();
+
+            JobConfig jobConfig = new JobConfig();
+            jobDef.setConfig(jobConfig);
+            jobConfig.setId("internal/wakeup-jobs-timer");
+
+            JobScheduling jobScheduling = new JobScheduling();
+            jobDef.setScheduling(jobScheduling);
+            jobScheduling.setType(JobSchedulingType.CRON);
+            jobScheduling.setValue("0/10 * * * * ?");
+
+            scheduleQuarzJob(jobDef, WakeupJob.class);
+
+        } catch (Exception ex) {
+            LOG.error("Unable to load internal jobs", ex);
+            throw new AppException("load.internal.jobs.error", ex);
+        }
     }
 
     // ------------------------------------------ JobSchedulingService Methods ----------------------------------------
@@ -72,17 +100,50 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
     public void scheduleJob(JobDef jobDef) throws AppException {
         LOG.debug("scheduleJob : jobDef={}", jobDef);
 
-        validateJobDef(jobDef);
-        scheduleQuarzJob(jobDef);
+        Validate.notNull(jobDef);
+        validate(jobDef.getConfig());
+        validate(jobDef.getScheduling());
 
         try {
+            if (jobDef.getScheduling().getType() == JobSchedulingType.WAKEUP) {
 
-            // Persist the job configuration
-            this.jobConfigDao.persist(jobDef.getConfig());
+                JobWakeup wakeup = new JobWakeup();
+                wakeup.setId(jobDef.getConfig().getId());
+                wakeup.setCallback(jobDef.getConfig().getUrl());
+                wakeup.setWakeupTime(new Long(jobDef.getScheduling().getValue()));
+
+                jobWakeupDao.persist(wakeup);
+
+            } else {
+
+                scheduleQuarzJob(jobDef, CronJob.class);
+
+                // Persist the job configuration
+                this.jobConfigDao.persist(jobDef.getConfig());
+            }
 
         } catch (Exception ex) {
-            LOG.error(String.format("Unable to schedule job %s", jobDef), ex);
-            throw new AppException("can.not.persist.configuration", Arrays.asList(jobDef.getConfig().getId()), ex);
+            LOG.error("Unable to schedule job " + jobDef, ex);
+            throw new AppException("schedule.job.error", Arrays.asList(jobDef.getConfig().getId()), ex);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void rescheduleJob(String jobId, JobScheduling conf) throws AppException {
+        LOG.debug("rescheduleJob : id={}, conf={}", jobId, conf);
+
+        validate(conf);
+
+        try {
+            Trigger trigger = this.buildTrigger(jobId, conf, null);
+            this.scheduler.rescheduleJob(trigger.getKey(), trigger);
+
+        } catch (Exception e) {
+            LOG.error("Unable to re-schedule job " + jobId + " with configuration " + conf, e);
+            throw new AppException("reschedule.job.error", Arrays.asList(jobId), e);
         }
     }
 
@@ -101,9 +162,9 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
             this.jobConfigDao.delete(jobId);
             this.jobLockDao.delete(jobId);
 
-        } catch (SQLException ex) {
+        } catch (Exception ex) {
             LOG.error(String.format("Unable to unschedule job {}", jobId), ex);
-            throw AppExceptions.serverError(ex);
+            throw new AppException("unchedule.job.error", Arrays.asList(jobId), ex);
         }
 
         return res;
@@ -124,7 +185,7 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
             }
 
             JobScheduling schedConf = this.jobSchedulingDao.find(jobId);
-            if ((schedConf == null) || (schedConf.getType() == JobSchedulingType.DATE)) {
+            if (schedConf == null) {
 
                 // Remove job configuration when a job is complete
                 this.unscheduleJob(jobId);
@@ -133,9 +194,12 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
                 this.jobStateService.unlockJob(jobId);
             }
 
-        } catch (SchedulerException | SQLException sex) {
+        } catch (AppException aex) {
+            throw aex;
+            
+        } catch (Exception sex) {
             LOG.error(String.format("Unable to acknowledge job {}", jobId), sex);
-            throw new AppException("ack.job.failure", Arrays.asList(jobId), sex);
+            throw new AppException("ack.job.error", Arrays.asList(jobId), sex);
         }
     }
 
@@ -151,7 +215,7 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
 
             JobState jobState = this.jobStateService.find(jobId);
             if (jobState == null) {
-                throw AppExceptions.jobNotFound(jobId);
+                throw new AppException("job.not.found", Arrays.asList(jobId));
             }
 
             JobLock lock = jobState.getLock();
@@ -165,9 +229,12 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
                 res = true;
             }
 
-        } catch (SchedulerException ex) {
+        } catch (AppException aex) {
+            throw aex;
+            
+        } catch (Exception ex) {
             LOG.error(String.format("Unable to trigger job {}", jobId), ex);
-            throw new AppException("can.not.trigger", Arrays.asList(jobId), ex);
+            throw new AppException("trigger.job.error", Arrays.asList(jobId), ex);
         }
 
         return res;
@@ -177,86 +244,95 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
      * {@inheritDoc}
      */
     @Override
-    public void deleteJob() throws AppException {
-        LOG.debug("deleteJob");
+    public void clearJobs() throws AppException {
+        LOG.debug("clearJobs");
 
         try {
             // Delete configuration
             this.jobLockDao.deleteAll();
             this.jobConfigDao.deleteAll();
+            this.jobWakeupDao.deleteAll();
 
             // Delete scheduling
             this.scheduler.clear();
 
-        } catch (SchedulerException | SQLException ex) {
-            LOG.error("Unable to cleard jobd", ex);
-            throw new AppException("clear.error", ex);
+        } catch (Exception ex) {
+            LOG.error("Unable to clear jobs", ex);
+            throw new AppException("clear.jobs.error", ex);
         }
     }
 
     // ----------------------------------------------- Private Methods ------------------------------------------------
 
-    private void validateJobDef(JobDef jobDef) throws AppException {
+    private void validate(JobConfig jobConfig) throws AppException {
 
-        Validate.notNull(jobDef);
-        Validate.notNull(jobDef.getConfig());
-        Validate.notNull(jobDef.getScheduling());
+        Validate.notNull(jobConfig);
 
-        if (StringUtils.isEmpty(jobDef.getConfig().getId())) {
-            jobDef.getConfig().setId(UUID.randomUUID().toString());
+        if (StringUtils.isEmpty(jobConfig.getId())) {
+            jobConfig.setId(UUID.randomUUID().toString());
         }
 
-        if (StringUtils.isEmpty(jobDef.getConfig().getUrl())) {
-            throw new AppException("missing.config.url");
+        if (StringUtils.isEmpty(jobConfig.getUrl())) {
+            throw new AppException("missing.callback.url");
         }
 
-        if (jobDef.getConfig().getUrl().length() > 255) {
+        if (jobConfig.getUrl().length() > 255) {
             throw new AppException("too.long.url");
-        }
-
-        if (jobDef.getScheduling().getType() == null) {
-            throw new AppException("missing.scheduling.type");
-        }
-
-        if (jobDef.getScheduling().getType() == JobSchedulingType.CRON) {
-            if (StringUtils.isEmpty(jobDef.getScheduling().getValue()))
-                throw new AppException("missing.scheduling.value");
-        }
-
-        if (jobDef.getScheduling().getType() == JobSchedulingType.DATE) {
-            if (jobDef.getScheduling().getStartAt() == 0)
-                throw new AppException("missing.scheduling.date");
         }
     }
 
-    private void scheduleQuarzJob(JobDef jobDef) throws AppException {
+    private void validate(JobScheduling scheduling) throws AppException {
 
-        JobDetail job = this.buildJob(jobDef);
-        Trigger trigger = this.buildTrigger(jobDef, job.getKey());
+        Validate.notNull(scheduling);
 
-        try {
+        if (scheduling.getType() == null) {
+            throw new AppException("missing.scheduling.type");
+        }
 
-            // Add a new job or replace an existing one
-            this.scheduler.addJob(job, true);
+        if (scheduling.getType() == JobSchedulingType.CRON) {
+            if (StringUtils.isEmpty(scheduling.getValue()))
+                throw new AppException("missing.schedule.value");
 
             try {
-                if (this.scheduler.checkExists(trigger.getKey())) {
-                    this.scheduler.rescheduleJob(trigger.getKey(), trigger);
+                CronExpression.validateExpression(scheduling.getValue());
+            } catch (ParseException e) {
+                throw new AppException("invalid.schedule.value", Arrays.asList(scheduling.getValue()));
+            }
+        }
 
-                } else {
-                    this.scheduler.scheduleJob(trigger);
-                }
+        if (scheduling.getType() == JobSchedulingType.WAKEUP) {
+            if (StringUtils.isEmpty(scheduling.getValue()))
+                throw new AppException("missing.schedule.value");
 
-            } catch (ObjectAlreadyExistsException e) {
-                LOG.warn("Trigger already exists with key {}, try to replace it.", trigger.getKey());
+            if (!NumberUtils.isDigits(scheduling.getValue()))
+                throw new AppException("invalid.schedule.value");
+        }
+    }
 
-                // To manage concurrent calls
+    private void scheduleQuarzJob(JobDef jobDef, Class<? extends Job> type) throws SchedulerException {
+
+        JobDetail job = this.buildJob(jobDef.getConfig(), type);
+        Trigger trigger = this.buildTrigger(jobDef.getConfig().getId(), jobDef.getScheduling(), job.getKey());
+
+        // Add the new jobs
+        if (!this.scheduler.checkExists(job.getKey())) {
+            this.scheduler.addJob(job, true);
+        }
+
+        // Add the new triggers or update existing ones
+        try {
+            if (this.scheduler.checkExists(trigger.getKey())) {
                 this.scheduler.rescheduleJob(trigger.getKey(), trigger);
+
+            } else {
+                this.scheduler.scheduleJob(trigger);
             }
 
-        } catch (SchedulerException e) {
-            LOG.error("Unable to schedule job jobDef : " + jobDef.toString(), e);
-            throw new AppException("internal.error", new ArrayList<String>(), e);
+        } catch (ObjectAlreadyExistsException e) {
+            LOG.info("Trigger already exists with key {}, try to replace it.", trigger.getKey());
+
+            // To manage concurrent calls
+            this.scheduler.rescheduleJob(trigger.getKey(), trigger);
         }
     }
 
@@ -265,41 +341,29 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
      * 
      * @return true if the job existed, and was unscheduled.
      */
-    private boolean unscheduleQuartzJob(String jobId) throws AppException {
+    private boolean unscheduleQuartzJob(String jobId) throws SchedulerException {
 
-        try {
-            return this.scheduler.deleteJob(this.buildJobKey(jobId));
+        return this.scheduler.deleteJob(this.buildJobKey(jobId));
+    }
 
-        } catch (SchedulerException e) {
-            LOG.error("Unable to unschedule job with id : " + jobId, e);
-            throw new AppException("internal.error", new ArrayList<String>(), e);
-        }
+    private TriggerKey buildTiggerKey(String confId) {
+        return new TriggerKey(confId, confId + "-trigger");
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private Trigger buildTrigger(JobDef jobDef, JobKey job) throws AppException {
+    private Trigger buildTrigger(String confId, JobScheduling conf, JobKey job) {
 
-        JobScheduling conf = jobDef.getScheduling();
-        TriggerKey key = this.buildTiggerKey(jobDef.getConfig().getId());
+        TriggerKey key = this.buildTiggerKey(confId);
         TriggerBuilder trigger = TriggerBuilder.newTrigger().withIdentity(key);
 
-        try {
-            switch (jobDef.getScheduling().getType()) {
-            case CRON:
+        // Set CRON value
+        if (StringUtils.isNotEmpty(conf.getValue())) {
+            trigger.withSchedule(CronScheduleBuilder.cronSchedule(conf.getValue()));
+        }
 
-                trigger.withSchedule(CronScheduleBuilder.cronSchedule(conf.getValue()));
-
-            case DATE:
-            default:
-
-                if (conf.getStartAt() > 0) {
-                    trigger.startAt(new Date(conf.getStartAt()));
-                }
-                break;
-            }
-
-        } catch (RuntimeException e) {
-            throw new AppException("invalid.schedule.value", Arrays.asList(conf.getValue()), e);
+        // Set DATE value
+        if (conf.getStartAt() > 0) {
+            trigger.startAt(new Date(conf.getStartAt()));
         }
 
         if (job != null) {
@@ -309,20 +373,16 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
         return trigger.build();
     }
 
-    private JobDetail buildJob(JobDef jobDef) throws AppException {
-
-        JobKey key = this.buildJobKey(jobDef.getConfig().getId());
-        JobBuilder job = JobBuilder.newJob(PostHttpJob.class).withIdentity(key).storeDurably();
-
-        return job.build();
-    }
-
     private JobKey buildJobKey(String confId) {
         return new JobKey(confId);
     }
 
-    private TriggerKey buildTiggerKey(String confId) {
-        return new TriggerKey(confId, confId + "-trigger");
+    private JobDetail buildJob(JobConfig jobConf, Class<? extends Job> type) {
+
+        JobKey key = this.buildJobKey(jobConf.getId());
+        JobBuilder job = JobBuilder.newJob(type).withIdentity(key).storeDurably();
+
+        return job.build();
     }
 
 }

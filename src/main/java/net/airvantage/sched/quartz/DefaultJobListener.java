@@ -1,7 +1,7 @@
 package net.airvantage.sched.quartz;
 
 import net.airvantage.sched.quartz.job.JobResult;
-import net.airvantage.sched.services.RetryPolicyService;
+import net.airvantage.sched.services.tech.RetryPolicyHelper;
 
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
@@ -12,20 +12,20 @@ import org.slf4j.LoggerFactory;
 /**
  * A listener to apply retry policy.
  */
-public class RetryJobListener extends JobListenerSupport {
+public class DefaultJobListener extends JobListenerSupport {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RetryJobListener.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DefaultJobListener.class);
 
-    private RetryPolicyService retryPolicyService;
+    private RetryPolicyHelper retryPolicyHelper;
 
     @Override
     public String getName() {
-        return "RetryJobListener";
+        return "DefaultJobListener";
     }
 
-    public RetryJobListener(RetryPolicyService retryPolicyService) {
+    public DefaultJobListener(RetryPolicyHelper retryPolicyHelper) {
 
-        this.retryPolicyService = retryPolicyService;
+        this.retryPolicyHelper = retryPolicyHelper;
     }
 
     @Override
@@ -34,11 +34,11 @@ public class RetryJobListener extends JobListenerSupport {
         try {
             if (context.getResult() != null) {
                 JobResult result = (JobResult) context.getResult();
-                this.retryPolicyService.jobExecuted(result);
+                this.retryPolicyHelper.handleResult(result);
             }
 
-        } catch (Exception aex) {
-            LOG.error("Job complete action failed for job " + context.getJobDetail().getKey().getName(), aex);
+        } catch (Exception ex) {
+            LOG.error("Job completion failed " + context.getJobDetail().getKey().getName(), ex);
         }
     }
 
