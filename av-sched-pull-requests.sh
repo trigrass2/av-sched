@@ -13,7 +13,7 @@ mvn package
 
 # Start a mysql docker container
 
-export AV_SCHED_CONF_DIR=$WORKSPACE/conf/jenkins
+export AVSCHED_CONF_DIR=$WORKSPACE/conf/jenkins
 
 sudo docker kill $(sudo docker ps -a -q) || mysql
 sudo docker rm $(sudo docker ps -a -q) || true || true
