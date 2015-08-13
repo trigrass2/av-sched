@@ -196,7 +196,7 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
 
         } catch (AppException aex) {
             throw aex;
-            
+
         } catch (Exception sex) {
             LOG.error(String.format("Unable to acknowledge job {}", jobId), sex);
             throw new AppException("ack.job.error", Arrays.asList(jobId), sex);
@@ -231,7 +231,7 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
 
         } catch (AppException aex) {
             throw aex;
-            
+
         } catch (Exception ex) {
             LOG.error(String.format("Unable to trigger job {}", jobId), ex);
             throw new AppException("trigger.job.error", Arrays.asList(jobId), ex);
@@ -315,9 +315,10 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
         Trigger trigger = this.buildTrigger(jobDef.getConfig().getId(), jobDef.getScheduling(), job.getKey());
 
         // Add the new jobs
-        if (!this.scheduler.checkExists(job.getKey())) {
-            this.scheduler.addJob(job, true);
-        }
+        // if (!this.scheduler.checkExists(job.getKey())) {
+        // TMP MIGRATION - Update each time to update Job.class
+        this.scheduler.addJob(job, true);
+        // }
 
         // Add the new triggers or update existing ones
         try {
