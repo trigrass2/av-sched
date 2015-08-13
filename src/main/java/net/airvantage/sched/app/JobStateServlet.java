@@ -10,58 +10,61 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import net.airvantage.sched.app.exceptions.AppException;
-import net.airvantage.sched.dao.JobStateDao;
+import net.airvantage.sched.app.mapper.JsonMapper;
 import net.airvantage.sched.model.JobState;
+import net.airvantage.sched.services.JobStateService;
 
-import org.quartz.SchedulerException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-
+/**
+ * Servlet to access current scheduled jobs state.
+ * 
+ * <ul>
+ * <li>GET - / : the state of the job.</li>
+ * <li>GET - / : the state of all scheduled jobs.</li>
+ * </ul>
+ */
 public class JobStateServlet extends HttpServlet {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
+    public static final Logger LOG = LoggerFactory.getLogger(JobStateServlet.class);
 
-    private static final ObjectMapper JACKSON = new ObjectMapper();
-
-    private JobStateDao jobStateDao;
+    private JobStateService jobStateService;
+    private JsonMapper jsonMapper;
 
     @Override
     public void init() throws ServletException {
-        JACKSON.enable(SerializationFeature.INDENT_OUTPUT);
-        try {
-            jobStateDao = ServiceLocator.getInstance().getJobStateDao();
-        } catch (SchedulerException e) {
-            throw new ServletException(e);
-        }
 
+        jobStateService = ServiceLocator.getInstance().getJobStateService();
+        jsonMapper = ServiceLocator.getInstance().getJsonMapper();
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 
+        String content = null;
+
         try {
             List<JobState> jobStates = null;
             String jobId = req.getParameter("jobId");
+
             if (jobId != null) {
-                jobStates = Arrays.asList(jobStateDao.findJobState(jobId));
+                jobStates = Arrays.asList(jobStateService.find(jobId));
+
             } else {
-                jobStates = jobStateDao.getJobStates();
+                jobStates = jobStateService.findAll();
             }
 
-            resp.setContentType("application/json");
-
-            String content = JACKSON.writeValueAsString(jobStates);
-            resp.getWriter().write(content);
+            content = jsonMapper.writeValueAsString(jobStates);
 
         } catch (AppException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            LOG.debug("Exception while getting jobs state", e);
+            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
 
+        resp.setContentType("application/json");
+        resp.getWriter().write(content);
     }
 
 }

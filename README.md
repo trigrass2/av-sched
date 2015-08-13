@@ -13,8 +13,7 @@ A template exist in the "conf" folder.
 
 ### Mandatory
 
-- `av-sched.secret` : secret string exchanged in all API calls. (See [Security](#security) )
-
+- `av-sched.secret` : secret string exchanged in all API calls. (See [Security](#Security) )
 - `av-sched.db.server`
 - `av-sched.db.port`
 - `av-sched.db.dbName`
@@ -44,7 +43,7 @@ Database bootstrap and migrations are automatically run at application startup.
 
 - `mvn eclipse:eclipse`
 - setup AVSCHED_CONF_DIR variable in build conf
-- Run `SchedMain`
+- Run `Launcher`
 
 #### From jar
 
@@ -71,7 +70,7 @@ The application that implements the task should also check that this header has 
 
 Obviously, this secret should remain, *ahem*, [secret](http://uncyclopedia.wikia.com/wiki/Captain_Obvious).
 
-### Schedule a job
+### Schedule a CRON job
 
 ~~~
 POST host:8086/sched/api/job-def
@@ -87,6 +86,26 @@ POST host:8086/sched/api/job-def
   }
 }
 ~~~
+
+### Schedule a WAKEUP job
+
+~~~
+POST host:8086/sched/api/job-def
+{
+  "config" : {
+   "id" : "av-server/timers",
+   "url" : "http://murphy:3000/echo"
+  },
+  "scheduling" : {
+    "type" : "wakeup",
+    "value" : 1435579200000
+  }
+}
+~~~
+
+A WAKEUP job can be triggered with a certain delay (many seconds or more).
+These kind of jobs are executed with a limited thread pool and the delay depends on the execution time of each job.
+When a WAKEUP job execution fails then a retry is done with an exponential wait time.
 
 ### Unschedule a job
 
@@ -136,7 +155,7 @@ Response:
 }
 ~~~
 
-A job that is locked (has been fired but not acknowledged yet will not be triggered.)
+A job that is locked (has been fired but not acknowledged yet) will not be triggered.
 
 ### List scheduled jobs
 
@@ -150,6 +169,7 @@ GET host:8086/sched/api/job
   },
   "scheduling" : {
     "type" : "cron",
+    "startAt" : 1435579200000,
     "value" : ".."
   },
   "lock" : {
@@ -187,6 +207,7 @@ GET host:8086/sched/api/job?jobId=test-job-1426783470991
   },
   "scheduling" : {
     "type" : "cron",
+    "startAt" : 1435579200000,
     "value" : ".."
   },
   "lock" : {
@@ -197,7 +218,20 @@ GET host:8086/sched/api/job?jobId=test-job-1426783470991
 } ]
 ~~~
 
+### Callback
 
+~~~
+POST localhost:3030/test/test-job-1426783470991
+~~~
+
+Response (directive can be returned by the callback) :
+
+~~~
+{
+  "ack" : true,
+  "retry" : 30000 // The time to wait before the next fire
+}
+~~~
 
 ## Functionnal Tests
 

@@ -9,12 +9,14 @@ REPO_NAME=av-sched-stores
 # The name of the configuration to be used is defined by the argument '--aws-cfg <ConfigName>'
 # AWS_S3_BUCKETS[ConfigName]="s3://...""
 declare -A AWS_S3_BUCKETS
-AWS_S3_BUCKETS[preprod]="s3://av-preprod-secrets/files/config/av-sched-stores.cfg"
 AWS_S3_BUCKETS[prodna]="s3://av-prod-secrets/files/config/av-sched-stores-na.cfg"
 AWS_S3_BUCKETS[prodeu]="s3://av-prod-secrets/files/config/av-sched-stores-eu.cfg"
+AWS_S3_BUCKETS[perf]="s3://av-preprod-secrets/files/config/av-sched-stores-perf.cfg"
+AWS_S3_BUCKETS[dev1]="s3://av-preprod-secrets/files/config/av-sched-stores-dev1.cfg"
+AWS_S3_BUCKETS[qa]="s3://av-preprod-secrets/files/config/av-sched-stores-qa.cfg"
 
 # List of the network parameters to extract
-NETWORK_PARAMS_NAMES=( PrivateSubnetA PrivateSubnetB PrivateSubnetC PrivateSecurityGroup )
+NETWORK_PARAMS_NAMES=( PrivateSubnetA PrivateSubnetB PrivateSubnetC PrivateSecurityGroup AlarmSNSTopic )
 
 # List of stack parameters (used in the help message)
 STACK_PARAMS_NAMES=( EnvName DBInstanceClass DBStorageType DBAllocatedStorage DBIops DBUser DBPwd )

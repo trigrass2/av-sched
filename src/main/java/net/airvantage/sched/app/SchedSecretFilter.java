@@ -11,39 +11,42 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import net.airvantage.sched.Constants;
+/**
+ * A filter to manage internal communication security.
+ * 
+ * <p>
+ * A secret (see configuration properties) is shared with clients and should be set into the requests headers.
+ * </P>
+ */
+public class SchedSecretFilter implements Filter {
 
-public class SchedSecretFilter implements Filter{
+    public static final String SCHED_SECRET_HEADER_NAME = "X-Sched-secret";
 
-    public SchedSecretFilter() {
-    }
-    
-        
+    public SchedSecretFilter() {}
+
     @Override
-    public void init(FilterConfig arg0) throws ServletException {
-    }
-    
+    public void init(FilterConfig arg0) throws ServletException {}
+
     @Override
     public void doFilter(ServletRequest req, ServletResponse resp, FilterChain chain) throws IOException,
             ServletException {
-        
+
         HttpServletRequest httpReq = (HttpServletRequest) req;
         HttpServletResponse httpResp = (HttpServletResponse) resp;
-        
-        String schedSecretHeader = httpReq.getHeader(Constants.SCHED_SECRET_HEADER_NAME);
-        
+
+        String schedSecretHeader = httpReq.getHeader(SCHED_SECRET_HEADER_NAME);
+
         // Singleton pattern FTW - this make reloading works fine.
         String schedSecret = ServiceLocator.getInstance().getSchedSecret();
         if (schedSecretHeader != null && schedSecret.equalsIgnoreCase(schedSecretHeader)) {
             chain.doFilter(req, resp);
+
         } else {
             httpResp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         }
     }
 
     @Override
-    public void destroy() {
-        // TODO Auto-generated method stub
-    }
+    public void destroy() {}
 
 }

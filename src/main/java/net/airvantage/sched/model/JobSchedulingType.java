@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum JobSchedulingType {
-    CRON("cron");
+    
+    CRON("cron"),
+    WAKEUP("wakeup");
     
     private String key;
 
@@ -21,4 +23,5 @@ public enum JobSchedulingType {
     public String getKey() {
         return key;
     }
+    
 }

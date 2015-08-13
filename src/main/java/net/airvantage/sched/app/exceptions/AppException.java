@@ -6,10 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 public class AppException extends Exception {
-
-    /**
-     * 
-     */
+    
     private static final long serialVersionUID = 1L;
 
     public String error;
@@ -25,6 +22,11 @@ public class AppException extends Exception {
         super();
         this.error = error;
         this.params = params;
+    }
+    
+    public AppException(String error) {
+        super();
+        this.error = error;
     }
 
     public AppException(String error, List<String> params, Throwable cause) {

@@ -14,7 +14,7 @@ var sched = {
         }
     },
 
-    startListener: function(state, id, secret) {
+    startListener: function(state, id, secret, content) {
         return function() {
             return new Promise(function(resolve, reject) {
                 var app = express();
@@ -22,7 +22,7 @@ var sched = {
                 app.post("/test/" + id, function(req, res) {
                     sched.log("Received post request on", req.path);
                     //sched.log("Received request from av-sched");
-                    res.status(200).json({}).end();
+                    res.status(200).json(content).end();
                     var header = req.headers["x-sched-secret"];
                     assert.equal(header, secret, "Missing x-sched-secret header");
                     state.count = state.count + 1;
@@ -50,7 +50,7 @@ var sched = {
 
     scheduleJob: function(state, id, interval, secret) {
         return function() {
-            sched.log("Scheduling job on port", state.port, "with id", id);
+            sched.log("Scheduling CRON job on port", state.port, "with id", id);
             return rp({
                 uri: "http://localhost:8086/sched/api/job-def",
                 method: "POST",
@@ -66,6 +66,31 @@ var sched = {
                     scheduling: {
                         type: "cron",
                         value: "0/" + interval + " 0/1 * 1/1 * ? *"
+                    }
+                })
+            });
+        };
+
+    },
+
+    wakeupJob: function(state, id, date, timeout, secret) {
+        return function() {
+            sched.log("Scheduling WAKEUP job on port", state.port, "with id", id);
+            return rp({
+                uri: "http://localhost:8086/sched/api/job-def",
+                method: "POST",
+                headers: {
+                    "X-sched-secret": secret
+                },
+                body: JSON.stringify({
+                    config: {
+                        id: id,
+                        url: "http://localhost:" + state.port + "/test/" + id,
+                        timeout: timeout
+                    },
+                    scheduling: {
+                        type: "wakeup",
+                        value: "" + date
                     }
                 })
             });
@@ -202,7 +227,9 @@ var sched = {
                     assert.equal(test.lock.locked, job.lock.locked, "Expected lock state :" + test.lock.locked);
                 }
                 if (test && test.scheduling) {
-                    assert.deepEqual(test.scheduling, job.scheduling, "Expected job scheduling : " + test.scheduling);
+                    assert.deepEqual(test.scheduling.type, job.scheduling.type, "Expected job scheduling type : " + test.scheduling);
+                    assert.deepEqual(test.scheduling.value, job.scheduling.value, "Expected job scheduling value : " + test.scheduling);
+                    assert.ok(job.scheduling.startAt !== null, "Expected not null job scheduling startAt.");
                 }
             });
         };

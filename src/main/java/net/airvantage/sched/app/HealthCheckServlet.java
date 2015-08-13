@@ -9,25 +9,44 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+
+import net.airvantage.sched.app.mapper.JsonMapper;
 
 public class HealthCheckServlet extends HttpServlet {
 
-    private static final ObjectMapper JACKSON = new ObjectMapper();
-    
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
+
+    private JsonMapper jsonMapper;
+    private Scheduler scheduler;
+
+    @Override
+    public void init() throws ServletException {
+
+        jsonMapper = ServiceLocator.getInstance().getJsonMapper();
+        scheduler = ServiceLocator.getInstance().getScheduler();
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        // TODO(pht) maybe check different parts ?
+
         Map<String, Object> map = new HashMap<String, Object>();
-        map.put("sched", "ok");
+        try {
+            map.put("quartz.started", scheduler.getMetaData().isStarted());
+            map.put("quartz.started.from", scheduler.getMetaData().getRunningSince());
+            map.put("quartz.pool.size", scheduler.getMetaData().getThreadPoolSize());
+            map.put("quartz.nb.job.executed", scheduler.getMetaData().getNumberOfJobsExecuted());
+
+            map.put("app.status", "OK");
+
+        } catch (SchedulerException e) {
+            map.put("app.status", "KO - " + e.getMessage());
+        }
+
         resp.setStatus(HttpServletResponse.SC_OK);
         resp.setContentType("application/json");
-        resp.getWriter().println(JACKSON.writeValueAsString(map));
+        resp.getWriter().println(jsonMapper.writeValueAsString(map));
     }
-    
+
 }

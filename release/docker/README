@@ -1,5 +1,0 @@
-
-$ cp ../../av-sched-app/target/*-exec.jar av-sched.jar
-$ docker build -t av-sched .
-$ docker run -it -p 80:80 -p 65111:65111 --rm --name av-sched av-sched
-

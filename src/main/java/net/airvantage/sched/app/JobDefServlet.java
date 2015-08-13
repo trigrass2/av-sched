@@ -13,78 +13,88 @@ import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.app.mapper.JsonMapper;
 import net.airvantage.sched.model.JobDef;
 import net.airvantage.sched.model.JobId;
-import net.airvantage.sched.services.JobService;
+import net.airvantage.sched.services.JobSchedulingService;
 
-import org.quartz.SchedulerException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-
+/**
+ * Servlet to create or delete a new scheduling job.
+ * 
+ * <ul>
+ * <li>POST - / : create and schedule a new job.</li>
+ * <li>DELETE - / : unschedule a job and delete its configuration.</li> </li>
+ * </ul>
+ */
 public class JobDefServlet extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
 
     private static final Logger LOG = LoggerFactory.getLogger(JobDefServlet.class);
-    
-    private static final ObjectMapper JACKSON = new ObjectMapper();
 
     public static long startupTime;
     public static long startupDuration;
 
-    
-    private JobService jobService = null;
+    private JobSchedulingService jobService;
+    private JsonMapper jsonMapper;
 
     @Override
     public void init() throws ServletException {
         super.init();
 
-        JACKSON.enable(SerializationFeature.INDENT_OUTPUT);
-        
-        try {
-            jobService = ServiceLocator.getInstance().getJobService();
-        } catch (SchedulerException e) {
-            throw new ServletException("Unable to create jobService from ServiceLocator", e);
-        }
-
+        jobService = ServiceLocator.getInstance().getJobSchedulingService();
+        jsonMapper = ServiceLocator.getInstance().getJsonMapper();
     }
 
+    /**
+     * Schedule a new job.
+     */
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+
         Map<String, Object> res = new HashMap<String, Object>();
-        
         try {
-            JobDef jobDef = JsonMapper.jobDef(req.getInputStream());
+
+            JobDef jobDef = jsonMapper.jobDef(req.getInputStream());
+
             jobService.scheduleJob(jobDef);
-            // TODO(pht) not sure what to return
+
+            // Return the job id
             res.put("id", jobDef.getConfig().getId());
+
         } catch (AppException e) {
             LOG.debug("Exception while scheduling job", e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             res = e.asMap();
         }
+
         resp.setContentType("application/json");
-        resp.getWriter().println(JACKSON.writeValueAsString(res));
+        resp.getWriter().println(jsonMapper.writeValueAsString(res));
     }
 
+    /**
+     * Unschedule a job.
+     */
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-    Map<String, Object> res = new HashMap<String, Object>();
-        
+
+        Map<String, Object> res = new HashMap<String, Object>();
         try {
-            JobId jobId = JsonMapper.jobId(req.getInputStream());
-            boolean deleted = jobService.unscheduleJob(jobId);
+
+            JobId jobId = jsonMapper.jobId(req.getInputStream());
+            boolean deleted = jobService.unscheduleJob(jobId.getId());
+
             res.put("id", jobId.getId());
             res.put("deleted", deleted);
+
         } catch (AppException e) {
             LOG.debug("Exception while scheduling job", e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             res = e.asMap();
         }
+
         resp.setContentType("application/json");
-        resp.getWriter().println(JACKSON.writeValueAsString(res));
-    
+        resp.getWriter().println(jsonMapper.writeValueAsString(res));
     }
-    
+
 }

@@ -2,31 +2,61 @@ package net.airvantage.sched.app;
 
 import javax.sql.DataSource;
 
+import net.airvantage.sched.app.exceptions.AppException;
+import net.airvantage.sched.app.exceptions.ServiceRuntimeException;
+import net.airvantage.sched.app.mapper.JsonMapper;
 import net.airvantage.sched.conf.ConfigurationManager;
 import net.airvantage.sched.conf.Keys;
-import net.airvantage.sched.dao.JobConfigDaoImpl;
-import net.airvantage.sched.dao.JobLockDaoImpl;
-import net.airvantage.sched.dao.JobSchedulingDaoImpl;
-import net.airvantage.sched.dao.JobStateDao;
-import net.airvantage.sched.dao.JobStateDaoImpl;
+import net.airvantage.sched.dao.JobConfigDao;
+import net.airvantage.sched.dao.JobLockDao;
+import net.airvantage.sched.dao.JobSchedulingDao;
+import net.airvantage.sched.dao.JobWakeupDao;
 import net.airvantage.sched.db.SchemaMigrator;
-import net.airvantage.sched.quartz.LockTriggerListener;
+import net.airvantage.sched.quartz.DefaultJobListener;
+import net.airvantage.sched.quartz.DefaultTriggerListener;
 import net.airvantage.sched.quartz.QuartzClusteredSchedulerFactory;
-import net.airvantage.sched.services.JobService;
-import net.airvantage.sched.services.JobServiceImpl;
+import net.airvantage.sched.services.JobSchedulingService;
+import net.airvantage.sched.services.JobStateService;
+import net.airvantage.sched.services.impl.JobSchedulingServiceImpl;
+import net.airvantage.sched.services.impl.JobStateServiceImpl;
+import net.airvantage.sched.services.tech.JobExecutionHelper;
+import net.airvantage.sched.services.tech.RetryPolicyHelper;
 
 import org.apache.commons.configuration.Configuration;
-import org.apache.http.client.HttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.quartz.JobListener;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.TriggerListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ServiceLocator {
 
-    // ---------- Singleton pattern ----------
+    private static final Logger LOG = LoggerFactory.getLogger(ServiceLocator.class);
+
     // Do not use everywhere, only in things like quartz jobs & servlets.
     private static ServiceLocator instance;
+
+    private ConfigurationManager configManager;
+    private Scheduler scheduler;
+    private SchemaMigrator schemaMigrator;
+    private DataSource dataSource;
+    private JsonMapper jsonMapper;
+    private CloseableHttpClient httpClient;
+
+    private JobStateService jobStateService;
+    private JobSchedulingService jobService;
+    private RetryPolicyHelper retryPolicyHelper;
+    private JobExecutionHelper jobExecutionHelper;
+
+    private JobSchedulingDao jobSchedulingDao;
+    private JobConfigDao jobConfigDao;
+    private JobWakeupDao jobWakeupDao;
+    private JobLockDao jobLockDao;
+
+    // ----------------------------------------------- Initialization -------------------------------------------------
 
     public static ServiceLocator getInstance() {
         if (instance == null) {
@@ -35,41 +65,132 @@ public class ServiceLocator {
         return instance;
     }
 
-    // ---------- Singleton pattern ----------
-
-    private ConfigurationManager configManager;
-    private JobService jobService;
-    private JobStateDao jobStateDao;
-    private Scheduler scheduler;
-    private SchemaMigrator schemaMigrator;
-    private DataSource dataSource;
-
     public void init() {
+
         instance = this;
         configManager = new ConfigurationManager();
     }
 
-    public JobService getJobService() throws SchedulerException {
+    public void servicesPreload() throws AppException {
+
+        // Load internal jobs
+        ((JobSchedulingServiceImpl) getJobSchedulingService()).loadInternalJobs();
+    }
+
+    // -------------------------------------------------- Services ----------------------------------------------------
+
+    public JobSchedulingService getJobSchedulingService() {
         if (jobService == null) {
-            jobService = new JobServiceImpl(getScheduler(), getJobStateDao());
+            jobService = new JobSchedulingServiceImpl(getScheduler(), getJobStateService(), getJobConfigDao(),
+                    getJobLockDao(), getJobSchedulingDao(), getJobWakeupDao());
         }
         return jobService;
+    }
+
+    public RetryPolicyHelper getRetryPolicyHelper() {
+        if (retryPolicyHelper == null) {
+            retryPolicyHelper = new RetryPolicyHelper(getJobStateService(), getJobSchedulingService(),
+                    getJobWakeupDao());
+        }
+        return retryPolicyHelper;
+    }
+
+    public JobStateService getJobStateService() {
+        if (jobStateService == null) {
+            jobStateService = new JobStateServiceImpl(getJobConfigDao(), getJobLockDao(), getJobSchedulingDao());
+
+        }
+        return jobStateService;
+    }
+
+    public JobSchedulingDao getJobSchedulingDao() {
+        if (jobSchedulingDao == null) {
+            jobSchedulingDao = new JobSchedulingDao(getScheduler());
+
+        }
+        return jobSchedulingDao;
+    }
+
+    public JobLockDao getJobLockDao() {
+        if (jobLockDao == null) {
+            jobLockDao = new JobLockDao(getDataSource());
+
+        }
+        return jobLockDao;
+    }
+
+    public JobConfigDao getJobConfigDao() {
+        if (jobConfigDao == null) {
+            jobConfigDao = new JobConfigDao(getDataSource());
+
+        }
+        return jobConfigDao;
+    }
+
+    public JobWakeupDao getJobWakeupDao() {
+        if (jobWakeupDao == null) {
+            jobWakeupDao = new JobWakeupDao(getDataSource());
+
+        }
+        return jobWakeupDao;
+    }
+
+    public JobExecutionHelper geJobExecutionHelper() {
+        if (jobExecutionHelper == null) {
+            jobExecutionHelper = new JobExecutionHelper(getJobStateService(), getHttpClient(), getSchedSecret(),
+                    getJsonMapper(), getJobConfigDao(), getRetryPolicyHelper());
+        }
+        return jobExecutionHelper;
+    }
+
+    public CloseableHttpClient getHttpClient() {
+        if (httpClient == null) {
+            httpClient = HttpClientBuilder.create().disableContentCompression().setMaxConnPerRoute(10)
+                    .setMaxConnTotal(25).evictExpiredConnections().build();
+        }
+        return httpClient;
     }
 
     public ConfigurationManager getConfigManager() {
         return configManager;
     }
 
-    public JobStateDao getJobStateDao() throws SchedulerException {
-        if (jobStateDao == null) {
-            DataSource dataSource = getDataSource();
-            jobStateDao = new JobStateDaoImpl(new JobConfigDaoImpl(dataSource), 
-                    new JobLockDaoImpl(dataSource),
-                    new JobSchedulingDaoImpl(getScheduler()));
-
+    public JsonMapper getJsonMapper() {
+        if (jsonMapper == null) {
+            jsonMapper = new JsonMapper();
         }
-        return jobStateDao;
+        return jsonMapper;
     }
+
+    public SchemaMigrator getSchemaMigrator() {
+        if (schemaMigrator == null) {
+            schemaMigrator = new SchemaMigrator(getDataSource());
+        }
+        return schemaMigrator;
+    }
+
+    public Scheduler getScheduler() {
+        if (scheduler == null) {
+            try {
+                scheduler = QuartzClusteredSchedulerFactory.buildScheduler(getConfigManager().get());
+
+                scheduler.start();
+                scheduler.getListenerManager().addTriggerListener(getLockTriggerListener());
+                scheduler.getListenerManager().addJobListener(getRetryJobListener());
+
+            } catch (SchedulerException ex) {
+                LOG.error("Unable to load scheduler", ex);
+                throw new ServiceRuntimeException("Unable to load scheduler", ex);
+            }
+        }
+        return scheduler;
+    }
+
+    public String getSchedSecret() {
+        return getConfigManager().get().getString("av-sched.secret");
+    }
+
+    // ---------------------------------------------------- Private Methods -------------------------------------------
 
     private DataSource getDataSource() {
         if (dataSource == null) {
@@ -82,41 +203,18 @@ public class ServiceLocator {
             ds.setPassword(config.getString(Keys.Db.PASSWORD));
             // Attempt to fix https://github.com/AirVantage/av-sched/issues/6
             ds.setAutoReconnect(true);
-            
+
             dataSource = ds;
         }
         return dataSource;
     }
 
-    public SchemaMigrator getSchemaMigrator() throws Exception {
-        if (schemaMigrator == null) {
-            schemaMigrator = new SchemaMigrator(getDataSource());
-        }
-        return schemaMigrator;
+    private TriggerListener getLockTriggerListener() {
+        return new DefaultTriggerListener(getJobStateService());
     }
 
-    public Scheduler getScheduler() throws SchedulerException {
-        if (scheduler == null) {
-            
-            scheduler = QuartzClusteredSchedulerFactory.buildScheduler(getConfigManager().get());
-           
-            scheduler.start();
-            scheduler.getListenerManager().addTriggerListener(getLockTriggerListener());
-        }
-        return scheduler;
-    }
-
-    private TriggerListener getLockTriggerListener() throws SchedulerException {
-        return new LockTriggerListener(getJobStateDao());
-    }
-
-    public HttpClient getHttpClient() {
-        // TODO(pht) Is it safe to reuse the same httpClient everytime ?
-        return HttpClients.createDefault();
-    }
-
-    public String getSchedSecret() {
-        return getConfigManager().get().getString("av-sched.secret");
+    private JobListener getRetryJobListener() {
+        return new DefaultJobListener(getRetryPolicyHelper());
     }
 
     public int getPort() {

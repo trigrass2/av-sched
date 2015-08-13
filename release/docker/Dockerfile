@@ -1,5 +1,5 @@
 FROM airvantage/av-java
 
-EXPOSE 8080
+EXPOSE 8086
 
-ENTRYPOINT /usr/bin/java -DAVsched_CONF_DIR=/etc/av-sched/ -Dlogback.configurationFile=/etc/av-sched/logback.xml -jar *.jar
+ENTRYPOINT /usr/bin/java -DAVSCHED_CONF_DIR=/etc/av-sched/ -Dlogback.configurationFile=/etc/av-sched/logback.xml -jar *.jar

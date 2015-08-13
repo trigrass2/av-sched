@@ -1,0 +1,15 @@
+<configuration scan="true">
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss} [%-5level] %-45logger{40} %4line - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="ERROR">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <logger name="net.airvantage" level="INFO" />
+
+</configuration>

@@ -11,5 +11,5 @@ public class AppExceptions {
     public static AppException serverError(Throwable cause) {
         return new AppException("unexpected.error", cause);
     }
-    
+
 }

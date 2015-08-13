@@ -22,13 +22,16 @@ function jobHeader() {
 }
 
 function renderScheduling(job) {
+    var res = "?";
     var sched = job.scheduling;
     if (sched) {
         if (sched.type === "cron") {
-            return "CRON : " + sched.value;
+            res =  "CRON : " + sched.value;
+        } else if (sched.type === "date") {
+            res =  "DATE : " + new Date(sched.startAt);
         }
     }
-    return "?";
+    return res;
 }
 
 function renderLock(job) {

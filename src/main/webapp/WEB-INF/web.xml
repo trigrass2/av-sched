@@ -1,88 +1,81 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <web-app version="2.4" xmlns="http://java.sun.com/xml/ns/j2ee"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee
-         http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd">
 
-	<!-- Default servlet -->
-	<servlet>
-		<servlet-name>default</servlet-name>
-		<servlet-class>org.eclipse.jetty.servlet.DefaultServlet</servlet-class>
-		<init-param>
-			<param-name>dirAllowed</param-name>
-			<param-value>false</param-value>
-		</init-param>
-	</servlet>
 
-	<!-- Definition of a new job -->
-	<servlet>
-		<servlet-name>jobDefServlet</servlet-name>
-		<servlet-class>net.airvantage.sched.app.JobDefServlet</servlet-class>
-	</servlet>
+    <!-- ============================= SERVLETS =========================== -->
 
-	<!-- Ack, run, delete a job -->
-	<servlet>
-		<servlet-name>jobActionServlet</servlet-name>
-		<servlet-class>net.airvantage.sched.app.JobActionServlet</servlet-class>
-	</servlet>
+    <!-- Default servlet -->
+    <servlet>
+        <servlet-name>default</servlet-name>
+        <servlet-class>org.eclipse.jetty.servlet.DefaultServlet</servlet-class>
+        <init-param>
+            <param-name>dirAllowed</param-name>
+            <param-value>false</param-value>
+        </init-param>
+    </servlet>
 
-<!-- Check heath -->
-	<servlet>
-		<servlet-name>healthCheckServlet</servlet-name>
-		<servlet-class>net.airvantage.sched.app.HealthCheckServlet</servlet-class>
-	</servlet>
+    <!-- Definition of a new job -->
+    <servlet>
+        <servlet-name>jobDefServlet</servlet-name>
+        <servlet-class>net.airvantage.sched.app.JobDefServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>jobDefServlet</servlet-name>
+        <url-pattern>/api/job-def</url-pattern>
+    </servlet-mapping>
 
-<!-- Query job states -->
-	<servlet>
-		<servlet-name>jobStateServlet</servlet-name>
-		<servlet-class>net.airvantage.sched.app.JobStateServlet</servlet-class>
-	</servlet>
+    <!-- Ack, run, delete a job -->
+    <servlet>
+        <servlet-name>jobActionServlet</servlet-name>
+        <servlet-class>net.airvantage.sched.app.JobActionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>jobActionServlet</servlet-name>
+        <url-pattern>/api/job-action/*</url-pattern>
+    </servlet-mapping>
 
-	<!-- Check known secret -->
-	<filter>
-		<filter-name>schedSecretFilter</filter-name>
-		<filter-class>net.airvantage.sched.app.SchedSecretFilter</filter-class>
-	</filter>
+    <!-- Query job states -->
+    <servlet>
+        <servlet-name>jobStateServlet</servlet-name>
+        <servlet-class>net.airvantage.sched.app.JobStateServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>jobStateServlet</servlet-name>
+        <url-pattern>/api/job</url-pattern>
+    </servlet-mapping>
 
-	<!-- Filter Mappings -->
-	<filter-mapping>
-		<filter-name>schedSecretFilter</filter-name>
-		<url-pattern>/api/job-def/*</url-pattern>
-	</filter-mapping>
+    <!-- Check heath -->
+    <servlet>
+        <servlet-name>healthCheckServlet</servlet-name>
+        <servlet-class>net.airvantage.sched.app.HealthCheckServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>healthCheckServlet</servlet-name>
+        <url-pattern>/check</url-pattern>
+    </servlet-mapping>
+    
 
+    <!-- ============================== FILTERS =========================== -->
+
+    <!-- Check known secret -->
+    <filter>
+        <filter-name>schedSecretFilter</filter-name>
+        <filter-class>net.airvantage.sched.app.SchedSecretFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>schedSecretFilter</filter-name>
+        <url-pattern>/api/job-def/*</url-pattern>
+    </filter-mapping>
     <filter-mapping>
         <filter-name>schedSecretFilter</filter-name>
         <url-pattern>/api/job-action/*</url-pattern>
     </filter-mapping>
 
-    <!-- Servlet mappings -->    
-	<servlet-mapping>
-		<servlet-name>jobDefServlet</servlet-name>
-		<url-pattern>/api/job-def</url-pattern>
-	</servlet-mapping>
 
-	<servlet-mapping>
-		<servlet-name>jobActionServlet</servlet-name>
-		<url-pattern>/api/job-action/*</url-pattern>
-	</servlet-mapping>
-
-	<servlet-mapping>
-		<servlet-name>jobStateServlet</servlet-name>
-		<url-pattern>/api/job</url-pattern>
-	</servlet-mapping>
-
-    <servlet-mapping>
-        <servlet-name>healthCheckServlet</servlet-name>
-        <url-pattern>/check</url-pattern>
-    </servlet-mapping>
-
-<!-- 
-	<servlet-mapping>
-		<servlet-name>default</servlet-name>
-		<url-pattern>/</url-pattern>
-	</servlet-mapping>
- -->
-
+    <!-- ============================== FILES ============================= -->
+    
     <welcome-file-list>
         <welcome-file>public/index.html</welcome-file>
     </welcome-file-list>
