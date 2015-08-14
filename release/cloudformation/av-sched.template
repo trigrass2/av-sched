@@ -176,9 +176,12 @@
                             "Action": [ "s3:Get*", "s3:List*", "s3:Put*" ],
                             "Resource": [ { "Fn::Join" : ["", [ "arn:aws:s3:::", { "Ref": "EnvName" }, "-", { "Ref": "EnvType" }, "-logs/*" ] ] },
                                           { "Fn::Join" : ["", [ "arn:aws:s3:::", { "Ref": "EnvName" }, "-", { "Ref": "EnvType" }, "-logs" ] ] } ]
-                        } ]
+                        },
+
+                        { "Effect" : "Allow", "Action"   : [ "cloudwatch:PutMetricData" ], "Resource" : [ "*" ] },
+                        { "Effect" : "Allow", "Action"   : [ "ec2:DescribeTags" ], "Resource" : [ "*" ] }]
                     }
-               } ]
+               }]
             }
         },
 
@@ -273,6 +276,9 @@
                                 "   command: start\n",
 
                                 " - name: av-log.service\n",
+                                "   command: start\n",
+                                
+                                " - name: cw-mem-report.timer\n",
                                 "   command: start\n",
 
                                 " - name: download-av-sched-jar.service\n",
