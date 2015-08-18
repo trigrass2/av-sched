@@ -47,15 +47,13 @@ describe("av-sched", function() {
 
     it("does retry a delayed wakeup job", function() {
 
-        return sched.startListener(state, jobId, secret, {
-            "retry": 1
-        })()
+        return sched.startListener(state, jobId, secret, [{
+            "retry": 1000, "ack": true
+        }])()
             .then(sched.checkCalls(state, 0, "0"))
             .then(sched.wakeupJob(state, jobId, Date.now(), 5000, secret))
             .then(sched.waitFor(11))
             .then(sched.checkCalls(state, 1, "1"))
-            .then(sched.stopListener(state))
-            .then(sched.startListener(state, jobId, secret, {}))
             .then(sched.waitFor(11))
             .then(sched.checkCalls(state, 2, "3"))
             .then(sched.waitFor(11))

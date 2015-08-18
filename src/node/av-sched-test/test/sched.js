@@ -22,7 +22,14 @@ var sched = {
                 app.post("/test/" + id, function(req, res) {
                     sched.log("Received post request on", req.path);
                     //sched.log("Received request from av-sched");
-                    res.status(200).json(content).end();
+                    
+                    if (content instanceof Array) {
+                    	res.status(200).json(content[state.count]).end();
+                    	
+                    } else {
+                    	res.status(200).json(content).end();
+                    }
+                    
                     var header = req.headers["x-sched-secret"];
                     assert.equal(header, secret, "Missing x-sched-secret header");
                     state.count = state.count + 1;

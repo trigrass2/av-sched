@@ -2,7 +2,6 @@ package net.airvantage.sched.dao;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 
 import javax.sql.DataSource;
 
@@ -36,11 +35,11 @@ public class JobWakeupDao {
         try {
             if (this.find(wakeup.getId()) == null) {
                 queryRunner.update("insert into sched_job_wakeups(id,wakeup_time,callback) values(?,?,?)",
-                        wakeup.getId(), new Timestamp(wakeup.getWakeupTime()), wakeup.getCallback());
+                        wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback());
 
             } else {
-                queryRunner.update("update sched_job_wakeups set wakeup_time=?,callback=? where id=?", new Timestamp(
-                        wakeup.getWakeupTime()), wakeup.getCallback(), wakeup.getId());
+                queryRunner.update("update sched_job_wakeups set wakeup_time=?,callback=? where id=?",
+                        wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getId());
             }
 
         } catch (SQLException ex) {
@@ -92,7 +91,7 @@ public class JobWakeupDao {
 
             JobWakeup wakeup = new JobWakeup();
             wakeup.setId(rs.getString(1));
-            wakeup.setWakeupTime(rs.getTimestamp(2).getTime());
+            wakeup.setWakeupTime(rs.getLong(2));
             wakeup.setCallback(rs.getString(3));
 
             return wakeup;
@@ -122,7 +121,7 @@ public class JobWakeupDao {
 
                 JobWakeup wakeup = new JobWakeup();
                 wakeup.setId(rs.getString(1));
-                wakeup.setWakeupTime(rs.getTimestamp(2).getTime());
+                wakeup.setWakeupTime(rs.getLong(2));
                 wakeup.setCallback(rs.getString(3));
 
                 processing = handler.handle(wakeup);
@@ -134,7 +133,7 @@ public class JobWakeupDao {
 
         try {
             queryRunner.query("select id, wakeup_time, callback from sched_job_wakeups "
-                    + "where wakeup_time >= ? and wakeup_time <= ?", rsh, new Timestamp(from), new Timestamp(to));
+                    + "where wakeup_time >= ? and wakeup_time < ?", rsh, from, to);
 
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
