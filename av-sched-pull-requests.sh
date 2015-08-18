@@ -18,9 +18,8 @@ export AVSCHED_CONF_DIR=$WORKSPACE/conf/jenkins
 sudo docker kill $(sudo docker ps -a -q) || mysql
 sudo docker rm $(sudo docker ps -a -q) || true || true
 
-
 echo "Starting mysql"
-(sudo docker run -d --name="mysql-sched" -p 3307:3306 -e MYSQL_SCHEMA_NAME="av_sched" -e MYSQL_ADMIN_LOGIN="jenkins" -e MYSQL_ADMIN_PASS="jenkins" airvantage/dev-mysql)
+(sudo docker run -d --name="mysql-sched" -p 3306:3306 -e MYSQL_SCHEMA_NAME="av_sched" -e MYSQL_ADMIN_LOGIN="jenkins" -e MYSQL_ADMIN_PASS="jenkins" airvantage/dev-mysql)
 
 echo "Starting server"
 (java -jar ./target/av-sched-0.0.1-exec.jar --clear) & sched_pid=$!
