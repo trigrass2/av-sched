@@ -24,8 +24,8 @@ echo "Starting mysql"
 echo "Starting server"
 (java -jar ./target/av-sched-0.0.1-exec.jar --clear) & sched_pid=$!
 
-cd $WORKSPACE/src/node/av-sched-test
-npm install --quiet
-grunt
+# cd $WORKSPACE/src/node/av-sched-test
+# npm install --quiet
+# grunt
 
 kill $sched_pid || true
