@@ -1,5 +1,9 @@
 package net.airvantage.sched.app;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+
 import javax.sql.DataSource;
 
 import net.airvantage.sched.app.exceptions.AppException;
@@ -21,6 +25,7 @@ import net.airvantage.sched.services.impl.JobSchedulingServiceImpl;
 import net.airvantage.sched.services.impl.JobStateServiceImpl;
 import net.airvantage.sched.services.tech.JobExecutionHelper;
 import net.airvantage.sched.services.tech.RetryPolicyHelper;
+import net.airvantage.sched.tech.AutoRetryStrategyImpl;
 
 import org.apache.commons.configuration.Configuration;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -145,8 +150,13 @@ public class ServiceLocator {
 
     public CloseableHttpClient getHttpClient() {
         if (httpClient == null) {
+
+            AutoRetryStrategyImpl retryStartegy = new AutoRetryStrategyImpl(5, 1000, new HashSet<Integer>(
+                    Arrays.asList(503, 504)));
+
             httpClient = HttpClientBuilder.create().disableContentCompression().setMaxConnPerRoute(10)
-                    .setMaxConnTotal(25).evictExpiredConnections().build();
+                    .setMaxConnTotal(25).evictExpiredConnections().setServiceUnavailableRetryStrategy(retryStartegy)
+                    .build();
         }
         return httpClient;
     }
