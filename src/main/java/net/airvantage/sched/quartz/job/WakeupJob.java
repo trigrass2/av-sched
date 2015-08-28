@@ -27,7 +27,7 @@ public class WakeupJob implements Job {
     private JobExecutionHelper jobExecutionHelper;
     private JobWakeupDao jobWakeupDao;
 
-    private int threadPoolSize = 8;
+    private int threadPoolSize = 20;
     private int maxQueueSize = 10_000;
 
     // ------------------------------------------------- Constructors -------------------------------------------------
@@ -36,13 +36,17 @@ public class WakeupJob implements Job {
      * Constructor used by Quartz to load the job.
      */
     public WakeupJob() {
-        this(ServiceLocator.getInstance().geJobExecutionHelper(), ServiceLocator.getInstance().getJobWakeupDao());
+        this(ServiceLocator.getInstance().geJobExecutionHelper(), ServiceLocator.getInstance().getJobWakeupDao(),
+                ServiceLocator.getInstance().getWakeupJobThreadPoolSize(), ServiceLocator.getInstance().getWakeupJobMaxQueueSize());
     }
 
-    protected WakeupJob(JobExecutionHelper jobExecutionHelper, JobWakeupDao jobWakeupDao) {
+    protected WakeupJob(JobExecutionHelper jobExecutionHelper, JobWakeupDao jobWakeupDao, int threadPoolSize,
+            int maxQueueSize) {
 
         this.jobExecutionHelper = jobExecutionHelper;
         this.jobWakeupDao = jobWakeupDao;
+        this.threadPoolSize = threadPoolSize;
+        this.maxQueueSize = maxQueueSize;
     }
 
     // ------------------------------------------------- Public Methods -----------------------------------------------
