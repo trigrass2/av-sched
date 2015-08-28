@@ -154,9 +154,11 @@ public class ServiceLocator {
             AutoRetryStrategyImpl retryStartegy = new AutoRetryStrategyImpl(5, 1000, new HashSet<Integer>(
                     Arrays.asList(503, 504)));
 
-            httpClient = HttpClientBuilder.create().disableContentCompression().setMaxConnPerRoute(10)
-                    .setMaxConnTotal(25).evictExpiredConnections().setServiceUnavailableRetryStrategy(retryStartegy)
-                    .build();
+            int poolSize = this.getOutputCnxPoolSize();
+
+            httpClient = HttpClientBuilder.create().disableContentCompression().setMaxConnPerRoute(poolSize)
+                    .setMaxConnTotal(poolSize * 2).evictExpiredConnections()
+                    .setServiceUnavailableRetryStrategy(retryStartegy).build();
         }
         return httpClient;
     }
@@ -196,8 +198,30 @@ public class ServiceLocator {
         return scheduler;
     }
 
+    // ---------------------------------------------------- Configuration ---------------------------------------------
+
     public String getSchedSecret() {
         return getConfigManager().get().getString("av-sched.secret");
+    }
+
+    public int getPort() {
+        return getConfigManager().get().getInt("av-sched.port");
+    }
+
+    public int getOutputCnxPoolSize() {
+        return getConfigManager().get().getInt("av-sched.output.cnx.pool.size", 20);
+    }
+
+    public int getWakeupJobThreadPoolSize() {
+        return getConfigManager().get().getInt("av-sched.wakeup.job.thread.pool.size", 20);
+    }
+
+    public int getWakeupJobMaxQueueSize() {
+        return getConfigManager().get().getInt("av-sched.wakeup.job.max.queue.size", 10_000);
+    }
+
+    public int getServletCnxPoolSize() {
+        return getConfigManager().get().getInt("av-sched.servlet.cnx.pool.size", 60);
     }
 
     // ---------------------------------------------------- Private Methods -------------------------------------------
@@ -225,9 +249,5 @@ public class ServiceLocator {
 
     private JobListener getRetryJobListener() {
         return new DefaultJobListener(getRetryPolicyHelper());
-    }
-
-    public int getPort() {
-        return getConfigManager().get().getInt("av-sched.port");
     }
 }

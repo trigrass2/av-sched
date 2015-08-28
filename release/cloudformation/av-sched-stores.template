@@ -15,7 +15,7 @@
         "DBInstanceClass": {
             "Description" : "The database instance type",
             "Type": "String",
-            "Default": "db.t2.medium",
+            "Default": "db.m3.medium",
             "AllowedValues" : [ "db.t2.micro", "db.t2.small", "db.t2.medium", "db.r3.large", "db.r3.xlarge", "db.r3.2xlarge", "db.r3.4xlarge", "db.r3.8xlarge", "db.m3.medium", "db.m3.large", "db.m3.xlarge", "db.m3.2xlarge", "db.t1.micro", "db.m1.small", "db.m2.xlarge", "db.m2.2xlarge", "db.m2.4xlarge", "db.cr1.8xlarge", "db.m1.medium", "db.m1.large", "db.m1.xlarge" ],            
             "ConstraintDescription" : "must select a valid database instance type."
         },
@@ -31,7 +31,7 @@
         "DBAllocatedStorage": {
             "Description" : "The allocated storage size specified in gigabytes (GB). If a value is defined in the DBIops parameter, DBAllocatedStorage must be at least 100 GB, which corresponds to the minimum Iops value of 1000. If Iops is increased (in 1000 IOPS increments), then DBAllocatedStorage must also be increased (in 100 GB increments) correspondingly",
             "Type": "Number",
-            "Default": 200
+            "Default": 1000
         },
 
         "DBIops": {

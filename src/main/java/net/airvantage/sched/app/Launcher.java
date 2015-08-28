@@ -83,8 +83,10 @@ public class Launcher {
 
         // Configure thread pool
 
+        int poolSize = ServiceLocator.getInstance().getServletCnxPoolSize();
+        
         BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(5000);
-        QueuedThreadPool pool = new QueuedThreadPool(50, 50, 60_000, queue);
+        QueuedThreadPool pool = new QueuedThreadPool(poolSize, poolSize, 60_000, queue);
         pool.setStopTimeout(30_000);
 
         Server server = new Server(pool);
