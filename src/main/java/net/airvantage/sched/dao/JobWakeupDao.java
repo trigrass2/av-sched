@@ -5,13 +5,13 @@ import java.sql.SQLException;
 
 import javax.sql.DataSource;
 
-import net.airvantage.sched.app.exceptions.DaoRuntimeException;
-import net.airvantage.sched.model.JobWakeup;
-
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import net.airvantage.sched.app.exceptions.DaoRuntimeException;
+import net.airvantage.sched.model.JobWakeup;
 
 /**
  * DAO to manage the {@link JobWakeup} object model.
@@ -33,20 +33,13 @@ public class JobWakeupDao {
         LOG.debug("persist : wakeup={}", wakeup);
 
         try {
-            if (this.find(wakeup.getId()) == null) {
-                queryRunner.update("insert into sched_job_wakeups(id,wakeup_time,callback) values(?,?,?)",
-                        wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback());
-
-            } else {
-                queryRunner.update("update sched_job_wakeups set wakeup_time=?,callback=? where id=?",
-                        wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getId());
-            }
+            queryRunner.update(
+                    "insert into sched_job_wakeups(id,wakeup_time,callback) values(?,?,?) on duplicate key update wakeup_time=?, callback=?",
+                    wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getWakeupTime(),
+                    wakeup.getCallback());
 
         } catch (SQLException ex) {
-            // Hack to manage concurrent calls (if this wake-up already exists just ignore it)
-            if (!ex.getMessage().contains("Duplicate entry")) {
-                throw new DaoRuntimeException(ex);
-            }
+            throw new DaoRuntimeException(ex);
         }
     }
 
@@ -71,35 +64,6 @@ public class JobWakeupDao {
 
         try {
             queryRunner.update("delete from sched_job_wakeups");
-
-        } catch (SQLException ex) {
-            throw new DaoRuntimeException(ex);
-        }
-    }
-
-    /**
-     * Returns the wake-up with the given identifier.
-     */
-    public JobWakeup find(String wakeupId) throws DaoRuntimeException {
-        LOG.debug("find : wakeupId={}", wakeupId);
-
-        ResultSetHandler<JobWakeup> rsh = (ResultSet rs) -> {
-
-            if (!rs.next()) {
-                return null;
-            }
-
-            JobWakeup wakeup = new JobWakeup();
-            wakeup.setId(rs.getString(1));
-            wakeup.setWakeupTime(rs.getLong(2));
-            wakeup.setCallback(rs.getString(3));
-
-            return wakeup;
-        };
-
-        try {
-            return queryRunner.query("select id, wakeup_time, callback from sched_job_wakeups where id=?", rsh,
-                    wakeupId);
 
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);

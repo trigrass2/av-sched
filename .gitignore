@@ -1,4 +1,6 @@
 bin
+.classpath
+.project
 .settings
 target
 conf/deploy-sched-local.properties

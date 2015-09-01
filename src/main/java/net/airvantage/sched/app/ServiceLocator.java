@@ -1,10 +1,19 @@
 package net.airvantage.sched.app;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 
 import javax.sql.DataSource;
+
+import org.apache.commons.configuration.Configuration;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.quartz.JobListener;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.TriggerListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.app.exceptions.ServiceRuntimeException;
@@ -26,16 +35,6 @@ import net.airvantage.sched.services.impl.JobStateServiceImpl;
 import net.airvantage.sched.services.tech.JobExecutionHelper;
 import net.airvantage.sched.services.tech.RetryPolicyHelper;
 import net.airvantage.sched.tech.AutoRetryStrategyImpl;
-
-import org.apache.commons.configuration.Configuration;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.quartz.JobListener;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
-import org.quartz.TriggerListener;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ServiceLocator {
 
@@ -151,8 +150,8 @@ public class ServiceLocator {
     public CloseableHttpClient getHttpClient() {
         if (httpClient == null) {
 
-            AutoRetryStrategyImpl retryStartegy = new AutoRetryStrategyImpl(5, 1000, new HashSet<Integer>(
-                    Arrays.asList(503, 504)));
+            AutoRetryStrategyImpl retryStartegy = new AutoRetryStrategyImpl(5, 1000,
+                    new HashSet<Integer>(Arrays.asList(503, 504)));
 
             int poolSize = this.getOutputCnxPoolSize();
 
