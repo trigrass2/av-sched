@@ -2,6 +2,8 @@ package net.airvantage.sched.dao;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.sql.DataSource;
 
@@ -71,34 +73,30 @@ public class JobWakeupDao {
     }
 
     /**
-     * Iterate through the wake-ups matching the given temporal window.
+     * Returns the {@code limit} first wake-ups with a scheduled date before the specified date.
      */
-    public void iterate(long from, long to, JobWakeupHandler handler) throws DaoRuntimeException {
-        LOG.debug("iterate : from={}, to={}", from, to);
+    public List<JobWakeup> find(long to, int limit) throws DaoRuntimeException {
+        LOG.debug("find : to={}, limit={}", to, limit);
 
-        ResultSetHandler<Boolean> rsh = (ResultSet rs) -> {
+        ResultSetHandler<List<JobWakeup>> rsh = (ResultSet rs) -> {
 
-            boolean processing = true;
-            boolean next = rs.next();
+            List<JobWakeup> res = new ArrayList<>();
 
-            while (next && processing) {
-
+            while (rs.next()) {
                 JobWakeup wakeup = new JobWakeup();
                 wakeup.setId(rs.getString(1));
                 wakeup.setWakeupTime(rs.getLong(2));
                 wakeup.setCallback(rs.getString(3));
-
-                processing = handler.handle(wakeup);
-                next = rs.next();
+                res.add(wakeup);
             }
 
-            return next;
+            return res;
         };
 
         try {
-            queryRunner.query("select id, wakeup_time, callback from sched_job_wakeups "
-                    + "where wakeup_time >= ? and wakeup_time < ?", rsh, from, to);
-
+            return queryRunner.query(
+                    "select id, wakeup_time, callback from sched_job_wakeups where wakeup_time < ? LIMIT ?", rsh, to,
+                    limit);
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
         }

@@ -1,15 +1,11 @@
 package net.airvantage.sched.quartz.job;
 
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import net.airvantage.sched.app.ServiceLocator;
-import net.airvantage.sched.dao.JobWakeupDao;
-import net.airvantage.sched.model.JobWakeup;
-import net.airvantage.sched.services.tech.JobExecutionHelper;
 
 import org.quartz.DisallowConcurrentExecution;
 import org.quartz.Job;
@@ -19,10 +15,17 @@ import org.quartz.JobKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.airvantage.sched.app.ServiceLocator;
+import net.airvantage.sched.dao.JobWakeupDao;
+import net.airvantage.sched.model.JobWakeup;
+import net.airvantage.sched.services.tech.JobExecutionHelper;
+
 @DisallowConcurrentExecution
 public class WakeupJob implements Job {
 
     private static final Logger LOG = LoggerFactory.getLogger(WakeupJob.class);
+
+    private static final int QUERY_LIMIT = 500;
 
     private JobExecutionHelper jobExecutionHelper;
     private JobWakeupDao jobWakeupDao;
@@ -37,7 +40,8 @@ public class WakeupJob implements Job {
      */
     public WakeupJob() {
         this(ServiceLocator.getInstance().geJobExecutionHelper(), ServiceLocator.getInstance().getJobWakeupDao(),
-                ServiceLocator.getInstance().getWakeupJobThreadPoolSize(), ServiceLocator.getInstance().getWakeupJobMaxQueueSize());
+                ServiceLocator.getInstance().getWakeupJobThreadPoolSize(),
+                ServiceLocator.getInstance().getWakeupJobMaxQueueSize());
     }
 
     protected WakeupJob(JobExecutionHelper jobExecutionHelper, JobWakeupDao jobWakeupDao, int threadPoolSize,
@@ -62,23 +66,22 @@ public class WakeupJob implements Job {
         try {
 
             ExecutorService executor = this.buildExecutorService();
-            jobWakeupDao.iterate(0, System.currentTimeMillis(), (JobWakeup wakeup) -> {
 
+            List<JobWakeup> wakeups = jobWakeupDao.find(System.currentTimeMillis(), QUERY_LIMIT);
+
+            for (JobWakeup wakeup : wakeups) {
                 try {
                     executor.execute(() -> {
                         this.jobExecutionHelper.execute(wakeup);
                     });
 
-                    return true;
-
                 } catch (RejectedExecutionException reex) {
                     LOG.warn("The thread pool queue is full, remaining wake-ups will be processed later");
-                    return false;
                 }
-            });
+            }
 
             executor.shutdown();
-            executor.awaitTermination(12, TimeUnit.HOURS);
+            executor.awaitTermination(1, TimeUnit.HOURS);
 
         } catch (Exception ex) {
             LOG.error("Unable to execute WAKEUP job " + key, ex);
