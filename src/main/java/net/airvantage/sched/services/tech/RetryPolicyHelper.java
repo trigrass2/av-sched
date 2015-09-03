@@ -1,9 +1,6 @@
 package net.airvantage.sched.services.tech;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
+import static net.airvantage.sched.quartz.job.JobResult.CallbackStatus.SUCCESS;
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.dao.JobWakeupDao;
 import net.airvantage.sched.model.JobState;
@@ -24,16 +21,9 @@ public class RetryPolicyHelper {
 
     private static final Logger LOG = LoggerFactory.getLogger(RetryPolicyHelper.class);
 
-    public static final long DEFAULT_ERROR_DELAY_MS = TimeUnit.MINUTES.toMillis(1);
-    public static final long DEFAULT_RETRY_DELAY_MS = TimeUnit.SECONDS.toMillis(12);
-
-    public static final int DEFAULT_MAX_NB_RETRIES_PER_JOB = 100;
-    public static final int DEFAULT_MAX_NB_RETRIES = 5_000;
-
-    /**
-     * Map to record the current number of retries by job key.
-     */
-    private ConcurrentHashMap<String, AtomicInteger> retries = new ConcurrentHashMap<>();
+    private final static long MAX_RETRY_COUNT = 32; // should lead to 24hours
+    private final static long MIN_RETRY_DELAY = 1000L;
+    private final static long MAX_RETRY_DELAY = 60 * 60 * 1000L;
 
     private JobWakeupDao jobWakeupDao;
     private JobStateService jobStateService;
@@ -43,7 +33,6 @@ public class RetryPolicyHelper {
 
     public RetryPolicyHelper(JobStateService jobStateService, JobSchedulingService jobSchedulingService,
             JobWakeupDao jobWakeupDao) {
-
         this.jobWakeupDao = jobWakeupDao;
         this.jobStateService = jobStateService;
         this.jobSchedulingService = jobSchedulingService;
@@ -78,22 +67,23 @@ public class RetryPolicyHelper {
     public void handleResult(JobWakeup wakeup, JobResult result) {
         LOG.debug("handleResult : wakeup={}, result={}", wakeup, result);
 
-        long delay = 0;
-        if (result.getRetry() > 0) {
-            delay = this.getRetryDelay(wakeup.getId(), result.getRetry());
+        long requestedRetryDate = result.getRetry();
 
-        } else if (result.getStatus() == CallbackStatus.FAILURE) {
-            delay = this.getRetryDelay(wakeup.getId(), DEFAULT_ERROR_DELAY_MS);
-        }
-
-        if (delay > 0) {
-            wakeup.setWakeupTime(System.currentTimeMillis() + delay);
-            jobWakeupDao.persist(wakeup);
-
-        } else {
+        if ((result.getStatus() == SUCCESS && requestedRetryDate <= 0) || (wakeup.getRetryCount() >= MAX_RETRY_COUNT)) {
+            // delete
+            LOG.trace("handleResult deleting : wakeup={}, result={}", wakeup, result);
             jobWakeupDao.delete(wakeup.getId());
-            retries.remove(wakeup.getId());
+        } else {
+            // rescheduling
+            int retryCount = wakeup.getRetryCount() + 1;
+            long retryDelay = Math.max(requestedRetryDate, computeRetryDelay(retryCount));
+
+            wakeup.setRetryCount(retryCount);
+            wakeup.setWakeupTime(retryDelay + System.currentTimeMillis());
+            LOG.trace("handleResult rescheduling : wakeup={}, result={}", wakeup, result);
+            jobWakeupDao.persist(wakeup);
         }
+
     }
 
     // ----------------------------------------------- Private Methods ------------------------------------------------
@@ -115,26 +105,8 @@ public class RetryPolicyHelper {
         // TODO check the retry date is before the next cron trigger fire time
     }
 
-    private long getRetryDelay(String jobId, long expected) {
-
-        AtomicInteger count = new AtomicInteger();
-        if (retries.size() < DEFAULT_MAX_NB_RETRIES) {
-            
-            count = retries.putIfAbsent(jobId, new AtomicInteger());
-            if (count == null) {
-                count = retries.get(jobId);
-            }
-            
-        } else {
-            LOG.warn("The cache of job retry counters is full ({} values).", DEFAULT_MAX_NB_RETRIES);
-        }
-        
-        long delay = expected + (count.getAndIncrement() * DEFAULT_RETRY_DELAY_MS);
-        if (count.get() > DEFAULT_MAX_NB_RETRIES_PER_JOB) {
-            LOG.error("The job {} retried more than {} times !", jobId, DEFAULT_MAX_NB_RETRIES_PER_JOB);
-        }
-
-        return delay;
+    private long computeRetryDelay(int retryCount) {
+        return Math.min(MAX_RETRY_DELAY, Math.max(MIN_RETRY_DELAY, (long) Math.pow(2, retryCount)));
     }
 
 }

@@ -9,7 +9,7 @@ public class JobResult {
     private CallbackStatus status;
     private String jobId;
     private boolean ack;
-    private long retry;
+    private long retry; // this is a DELAY (not a timestamp)
 
     public String getJobId() {
         return jobId;
