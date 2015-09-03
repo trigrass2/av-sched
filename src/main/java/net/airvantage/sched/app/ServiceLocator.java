@@ -86,7 +86,7 @@ public class ServiceLocator {
     public JobSchedulingService getJobSchedulingService() {
         if (jobService == null) {
             jobService = new JobSchedulingServiceImpl(getScheduler(), getJobStateService(), getJobConfigDao(),
-                    getJobLockDao(), getJobSchedulingDao(), getJobWakeupDao());
+                    getJobLockDao(), getJobSchedulingDao(), getJobWakeupDao(), getWakeupJobCron());
         }
         return jobService;
     }
@@ -215,12 +215,12 @@ public class ServiceLocator {
         return getConfigManager().get().getInt("av-sched.wakeup.job.thread.pool.size", 20);
     }
 
-    public int getWakeupJobMaxQueueSize() {
-        return getConfigManager().get().getInt("av-sched.wakeup.job.max.queue.size", 10_000);
-    }
-
     public int getServletCnxPoolSize() {
         return getConfigManager().get().getInt("av-sched.servlet.cnx.pool.size", 60);
+    }
+
+    public String getWakeupJobCron() {
+        return getConfigManager().get().getString("av-sched.wakeup.job.cron", "0/10 * * * * ?");
     }
 
     // ---------------------------------------------------- Private Methods -------------------------------------------

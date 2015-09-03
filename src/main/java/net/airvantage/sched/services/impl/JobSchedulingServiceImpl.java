@@ -5,23 +5,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 
-import net.airvantage.sched.app.exceptions.AppException;
-import net.airvantage.sched.dao.JobConfigDao;
-import net.airvantage.sched.dao.JobLockDao;
-import net.airvantage.sched.dao.JobSchedulingDao;
-import net.airvantage.sched.dao.JobWakeupDao;
-import net.airvantage.sched.model.JobConfig;
-import net.airvantage.sched.model.JobDef;
-import net.airvantage.sched.model.JobLock;
-import net.airvantage.sched.model.JobScheduling;
-import net.airvantage.sched.model.JobSchedulingType;
-import net.airvantage.sched.model.JobState;
-import net.airvantage.sched.model.JobWakeup;
-import net.airvantage.sched.quartz.job.CronJob;
-import net.airvantage.sched.quartz.job.WakeupJob;
-import net.airvantage.sched.services.JobSchedulingService;
-import net.airvantage.sched.services.JobStateService;
-
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.lang.math.NumberUtils;
@@ -40,6 +23,23 @@ import org.quartz.TriggerKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.airvantage.sched.app.exceptions.AppException;
+import net.airvantage.sched.dao.JobConfigDao;
+import net.airvantage.sched.dao.JobLockDao;
+import net.airvantage.sched.dao.JobSchedulingDao;
+import net.airvantage.sched.dao.JobWakeupDao;
+import net.airvantage.sched.model.JobConfig;
+import net.airvantage.sched.model.JobDef;
+import net.airvantage.sched.model.JobLock;
+import net.airvantage.sched.model.JobScheduling;
+import net.airvantage.sched.model.JobSchedulingType;
+import net.airvantage.sched.model.JobState;
+import net.airvantage.sched.model.JobWakeup;
+import net.airvantage.sched.quartz.job.CronJob;
+import net.airvantage.sched.quartz.job.WakeupJob;
+import net.airvantage.sched.services.JobSchedulingService;
+import net.airvantage.sched.services.JobStateService;
+
 /**
  * A service to manage the jobs scheduling.
  */
@@ -55,10 +55,12 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
     private JobWakeupDao jobWakeupDao;
     private JobSchedulingDao jobSchedulingDao;
 
+    private String jobWakeupCron;
+
     // ------------------------------------------------ Constructors --------------------------------------------------
 
     public JobSchedulingServiceImpl(Scheduler scheduler, JobStateService jobStateService, JobConfigDao jobConfigDao,
-            JobLockDao jobLockDao, JobSchedulingDao jobSchedulingDao, JobWakeupDao jobWakeupDao) {
+            JobLockDao jobLockDao, JobSchedulingDao jobSchedulingDao, JobWakeupDao jobWakeupDao, String jobWakeupCron) {
 
         this.scheduler = scheduler;
         this.jobStateService = jobStateService;
@@ -67,6 +69,7 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
         this.jobConfigDao = jobConfigDao;
         this.jobWakeupDao = jobWakeupDao;
         this.jobSchedulingDao = jobSchedulingDao;
+        this.jobWakeupCron = jobWakeupCron;
     }
 
     public void loadInternalJobs() throws AppException {
@@ -81,7 +84,7 @@ public class JobSchedulingServiceImpl implements JobSchedulingService {
             JobScheduling jobScheduling = new JobScheduling();
             jobDef.setScheduling(jobScheduling);
             jobScheduling.setType(JobSchedulingType.CRON);
-            jobScheduling.setValue("0/10 * * * * ?");
+            jobScheduling.setValue(jobWakeupCron);
 
             scheduleQuarzJob(jobDef, WakeupJob.class);
 

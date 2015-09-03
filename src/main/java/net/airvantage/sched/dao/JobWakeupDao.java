@@ -34,6 +34,13 @@ public class JobWakeupDao {
     public void persist(JobWakeup wakeup) throws DaoRuntimeException {
         LOG.debug("persist : wakeup={}", wakeup);
 
+        // Wakeup must not be scheduled in the past
+        long now = System.currentTimeMillis();
+        Long wakeupTime = wakeup.getWakeupTime();
+        if (wakeupTime == null || wakeupTime < now) {
+            wakeup.setWakeupTime(now);
+        }
+
         try {
             queryRunner.update(
                     "insert into sched_job_wakeups(id,wakeup_time,callback) values(?,?,?) on duplicate key update wakeup_time=?, callback=?",

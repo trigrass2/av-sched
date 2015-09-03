@@ -25,13 +25,11 @@ public class WakeupJob implements Job {
 
     private static final Logger LOG = LoggerFactory.getLogger(WakeupJob.class);
 
-    private static final int QUERY_LIMIT = 500;
+    private static final int QUERY_LIMIT = 1_000;
 
     private JobExecutionHelper jobExecutionHelper;
     private JobWakeupDao jobWakeupDao;
-
-    private int threadPoolSize = 20;
-    private int maxQueueSize = 10_000;
+    private int threadPoolSize;
 
     // ------------------------------------------------- Constructors -------------------------------------------------
 
@@ -40,17 +38,14 @@ public class WakeupJob implements Job {
      */
     public WakeupJob() {
         this(ServiceLocator.getInstance().geJobExecutionHelper(), ServiceLocator.getInstance().getJobWakeupDao(),
-                ServiceLocator.getInstance().getWakeupJobThreadPoolSize(),
-                ServiceLocator.getInstance().getWakeupJobMaxQueueSize());
+                ServiceLocator.getInstance().getWakeupJobThreadPoolSize());
     }
 
-    protected WakeupJob(JobExecutionHelper jobExecutionHelper, JobWakeupDao jobWakeupDao, int threadPoolSize,
-            int maxQueueSize) {
+    protected WakeupJob(JobExecutionHelper jobExecutionHelper, JobWakeupDao jobWakeupDao, int threadPoolSize) {
 
         this.jobExecutionHelper = jobExecutionHelper;
         this.jobWakeupDao = jobWakeupDao;
         this.threadPoolSize = threadPoolSize;
-        this.maxQueueSize = maxQueueSize;
     }
 
     // ------------------------------------------------- Public Methods -----------------------------------------------
@@ -63,25 +58,30 @@ public class WakeupJob implements Job {
         LOG.debug("execute : context={}", context);
 
         JobKey key = context.getJobDetail().getKey();
+
         try {
+            long now = System.currentTimeMillis();
+            ExecutorService executor = null;
+            boolean processing = true;
 
-            ExecutorService executor = this.buildExecutorService();
+            do {
+                List<JobWakeup> wakeups = jobWakeupDao.find(now, QUERY_LIMIT);
 
-            List<JobWakeup> wakeups = jobWakeupDao.find(System.currentTimeMillis(), QUERY_LIMIT);
+                if (wakeups != null && !wakeups.isEmpty()) {
+                    // Create executor if needed
+                    if (executor == null) {
+                        executor = this.buildExecutorService();
+                    }
 
-            for (JobWakeup wakeup : wakeups) {
-                try {
-                    executor.execute(() -> {
-                        this.jobExecutionHelper.execute(wakeup);
-                    });
-
-                } catch (RejectedExecutionException reex) {
-                    LOG.warn("The thread pool queue is full, remaining wake-ups will be processed later");
+                    processing = processWakeups(executor, wakeups);
+                } else {
+                    processing = false;
                 }
-            }
+            } while (processing);
 
-            executor.shutdown();
-            executor.awaitTermination(1, TimeUnit.HOURS);
+            if (executor != null) {
+                executor.shutdownNow();
+            }
 
         } catch (Exception ex) {
             LOG.error("Unable to execute WAKEUP job " + key, ex);
@@ -89,15 +89,37 @@ public class WakeupJob implements Job {
         }
     }
 
+    /**
+     * Process the list of {@link JobWakeup}.
+     * 
+     * @return true if all {@link JobWakeup} have been processed successfully
+     */
+    private boolean processWakeups(ExecutorService executor, List<JobWakeup> wakeups) throws Exception {
+        for (JobWakeup wakeup : wakeups) {
+            try {
+                executor.execute(() -> {
+                    this.jobExecutionHelper.execute(wakeup);
+                });
+
+            } catch (RejectedExecutionException reex) {
+                LOG.warn("The thread pool queue is full, remaining wake-ups will be processed later");
+            }
+        }
+
+        return executor.awaitTermination(10, TimeUnit.MINUTES);
+    }
+
+    /**
+     * Returns an instance of {@link ExecutorService}
+     */
     private ExecutorService buildExecutorService() {
 
         ThreadPoolExecutor executor = new ThreadPoolExecutor(threadPoolSize, threadPoolSize, 0L, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(maxQueueSize));
+                new ArrayBlockingQueue<Runnable>(QUERY_LIMIT));
 
         // if the pool is full the submit call will throw a RejectedExecutionException
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
 
         return executor;
     }
-
 }
