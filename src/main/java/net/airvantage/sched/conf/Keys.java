@@ -27,4 +27,10 @@ public class Keys {
 
     }
 
+    public class Cron {
+
+        public static final String WAKEUP_JOB = "av-sched.wakeup.job.cron";
+
+    }
+
 }

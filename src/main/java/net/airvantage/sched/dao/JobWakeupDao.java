@@ -7,13 +7,13 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
-import net.airvantage.sched.app.exceptions.DaoRuntimeException;
-import net.airvantage.sched.model.JobWakeup;
-
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import net.airvantage.sched.app.exceptions.DaoRuntimeException;
+import net.airvantage.sched.model.JobWakeup;
 
 /**
  * DAO to manage the {@link JobWakeup} object model.
@@ -110,16 +110,4 @@ public class JobWakeupDao {
             throw new DaoRuntimeException(ex);
         }
     }
-
-    /**
-     * Allows to handle read {@link JobWakeup}.
-     */
-    public interface JobWakeupHandler {
-
-        /**
-         * Calls to handle a read {@link JobWakeup}. Return false if the process has to be stopped.
-         */
-        public boolean handle(JobWakeup wakeup);
-    }
-
 }
