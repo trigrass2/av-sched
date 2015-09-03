@@ -79,7 +79,7 @@ public class WakeupJob implements Job {
                     processWakeups(executor, wakeups);
 
                     if (LOG.isDebugEnabled()) {
-                        LOG.debug("{} wakeups jave been processed in {} ms", wakeups.size(),
+                        LOG.debug("{} wakeups have been processed in {} ms", wakeups.size(),
                                 (System.currentTimeMillis() - start));
                     }
                 } else {
