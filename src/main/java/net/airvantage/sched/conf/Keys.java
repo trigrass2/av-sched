@@ -21,7 +21,6 @@ public class Keys {
 
         public static final String OUT_CNX_POOL_SIZE = "av-sched.output.cnx.pool.size";
         public static final String OUT_THREAD_POOL_SIZE = "av-sched.wakeup.job.thread.pool.size";
-        public static final String OUT_THREAD_QUEUE_SIZE = "av-sched.wakeup.job.max.queue.size";
 
         public static final String IN_CNX_POOL_SIZE = "av-sched.servlet.cnx.pool.size";
 

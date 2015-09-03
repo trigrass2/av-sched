@@ -223,10 +223,6 @@ public class ServiceLocator {
         return getConfigManager().get().getInt(Keys.Io.OUT_THREAD_POOL_SIZE, 100);
     }
 
-    public int getWakeupJobMaxQueueSize() {
-        return getConfigManager().get().getInt(Keys.Io.OUT_THREAD_QUEUE_SIZE, 10_000);
-    }
-
     public int getServletCnxPoolSize() {
         return getConfigManager().get().getInt(Keys.Io.IN_CNX_POOL_SIZE, 60);
     }
