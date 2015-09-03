@@ -1,9 +1,11 @@
 package net.airvantage.sched.quartz.job;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -64,7 +66,8 @@ public class WakeupJob implements Job {
             ExecutorService executor = null;
             boolean processing = true;
 
-            do {
+            while (processing) {
+                long start = System.currentTimeMillis();
                 List<JobWakeup> wakeups = jobWakeupDao.find(now, QUERY_LIMIT);
 
                 if (wakeups != null && !wakeups.isEmpty()) {
@@ -73,11 +76,16 @@ public class WakeupJob implements Job {
                         executor = this.buildExecutorService();
                     }
 
-                    processing = processWakeups(executor, wakeups);
+                    processWakeups(executor, wakeups);
+
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("{} wakeups jave been processed in {} ms", wakeups.size(),
+                                (System.currentTimeMillis() - start));
+                    }
                 } else {
                     processing = false;
                 }
-            } while (processing);
+            }
 
             if (executor != null) {
                 executor.shutdownNow();
@@ -91,22 +99,24 @@ public class WakeupJob implements Job {
 
     /**
      * Process the list of {@link JobWakeup}.
-     * 
-     * @return true if all {@link JobWakeup} have been processed successfully
      */
-    private boolean processWakeups(ExecutorService executor, List<JobWakeup> wakeups) throws Exception {
+    private void processWakeups(ExecutorService executor, List<JobWakeup> wakeups) throws Exception {
+        List<Callable<Void>> callables = new ArrayList<>();
         for (JobWakeup wakeup : wakeups) {
-            try {
-                executor.execute(() -> {
-                    this.jobExecutionHelper.execute(wakeup);
-                });
-
-            } catch (RejectedExecutionException reex) {
-                LOG.warn("The thread pool queue is full, remaining wake-ups will be processed later");
-            }
+            callables.add(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    jobExecutionHelper.execute(wakeup);
+                    return null;
+                }
+            });
         }
 
-        return executor.awaitTermination(10, TimeUnit.MINUTES);
+        List<Future<Void>> futures = executor.invokeAll(callables);
+        for (Future<Void> future : futures) {
+            // Wait for completion
+            future.get();
+        }
     }
 
     /**
