@@ -67,16 +67,16 @@ public class RetryPolicyHelper {
     public void handleResult(JobWakeup wakeup, JobResult result) {
         LOG.debug("handleResult : wakeup={}, result={}", wakeup, result);
 
-        long requestedRetryDate = result.getRetry();
+        long requestedRetryDelay = result.getRetry();
 
-        if ((result.getStatus() == SUCCESS && requestedRetryDate <= 0) || (wakeup.getRetryCount() >= MAX_RETRY_COUNT)) {
+        if ((result.getStatus() == SUCCESS && requestedRetryDelay <= 0) || (wakeup.getRetryCount() >= MAX_RETRY_COUNT)) {
             // delete
             LOG.trace("handleResult deleting : wakeup={}, result={}", wakeup, result);
             jobWakeupDao.delete(wakeup.getId());
         } else {
             // rescheduling
             int retryCount = wakeup.getRetryCount() + 1;
-            long retryDelay = Math.max(requestedRetryDate, computeRetryDelay(retryCount));
+            long retryDelay = Math.max(requestedRetryDelay, computeRetryDelay(retryCount));
 
             wakeup.setRetryCount(retryCount);
             wakeup.setWakeupTime(retryDelay + System.currentTimeMillis());
