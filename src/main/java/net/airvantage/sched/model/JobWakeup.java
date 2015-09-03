@@ -8,6 +8,7 @@ public class JobWakeup {
     private String id;
     private Long wakeupTime;
     private String callback;
+    private int retryCount;
 
     public String getId() {
         return id;
@@ -33,12 +34,21 @@ public class JobWakeup {
         this.callback = callback;
     }
 
+    public int getRetryCount() {
+        return retryCount;
+    }
+
+    public void setRetryCount(int retryCount) {
+        this.retryCount = retryCount;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
         result = prime * result + ((callback == null) ? 0 : callback.hashCode());
         result = prime * result + ((id == null) ? 0 : id.hashCode());
+        result = prime * result + retryCount;
         result = prime * result + ((wakeupTime == null) ? 0 : wakeupTime.hashCode());
         return result;
     }
@@ -62,6 +72,8 @@ public class JobWakeup {
                 return false;
         } else if (!id.equals(other.id))
             return false;
+        if (retryCount != other.retryCount)
+            return false;
         if (wakeupTime == null) {
             if (other.wakeupTime != null)
                 return false;
@@ -72,15 +84,8 @@ public class JobWakeup {
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append("JobWakeup [id=");
-        builder.append(id);
-        builder.append(", wakeupTime=");
-        builder.append(wakeupTime);
-        builder.append(", callback=");
-        builder.append(callback);
-        builder.append("]");
-        return builder.toString();
+        return "JobWakeup [id=" + id + ", wakeupTime=" + wakeupTime + ", callback=" + callback + ", retryCount="
+                + retryCount + "]";
     }
 
 }

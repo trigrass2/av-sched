@@ -21,14 +21,11 @@ public class RetryPolicyServiceImplTest {
 
     private RetryPolicyHelper service;
 
-    @Mock
-    private JobWakeupDao jobWakeupDao;
+    @Mock private JobWakeupDao jobWakeupDao;
 
-    @Mock
-    private JobStateService jobStateService;
+    @Mock private JobStateService jobStateService;
 
-    @Mock
-    private JobSchedulingService jobSchedulingService;
+    @Mock private JobSchedulingService jobSchedulingService;
 
     @Before
     public void setup() {
@@ -109,7 +106,7 @@ public class RetryPolicyServiceImplTest {
         wakeup.setCallback(callback);
 
         long now = System.currentTimeMillis();
-        long delay = 30_000l;
+        long delay = 30_000L;
 
         // MOCK
 
@@ -172,7 +169,7 @@ public class RetryPolicyServiceImplTest {
         Mockito.verify(jobWakeupDao, Mockito.times(5)).persist(captor.capture());
 
         JobWakeup actual = captor.getValue();
-        long wakeupTime = now + delay + (4 * RetryPolicyHelper.DEFAULT_RETRY_DELAY_MS);
+        long wakeupTime = now + 4000L;
         Assert.assertTrue(wakeupTime <= actual.getWakeupTime());
     }
 
@@ -218,7 +215,7 @@ public class RetryPolicyServiceImplTest {
         wakeup.setCallback(callback);
 
         long now = System.currentTimeMillis();
-        
+
         // MOCK
 
         JobResult result = Mockito.mock(JobResult.class);
@@ -238,7 +235,7 @@ public class RetryPolicyServiceImplTest {
         Mockito.verify(jobWakeupDao).persist(captor.capture());
 
         JobWakeup actual = captor.getValue();
-        long wakeupTime = now + RetryPolicyHelper.DEFAULT_ERROR_DELAY_MS;
+        long wakeupTime = now + 1000L;
         Assert.assertTrue(wakeupTime <= actual.getWakeupTime());
     }
 

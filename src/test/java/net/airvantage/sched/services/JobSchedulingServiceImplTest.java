@@ -2,18 +2,6 @@ package net.airvantage.sched.services;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.fail;
-import net.airvantage.sched.TestUtils;
-import net.airvantage.sched.app.exceptions.AppException;
-import net.airvantage.sched.dao.JobConfigDao;
-import net.airvantage.sched.dao.JobLockDao;
-import net.airvantage.sched.dao.JobSchedulingDao;
-import net.airvantage.sched.dao.JobWakeupDao;
-import net.airvantage.sched.model.JobConfig;
-import net.airvantage.sched.model.JobDef;
-import net.airvantage.sched.model.JobScheduling;
-import net.airvantage.sched.model.JobWakeup;
-import net.airvantage.sched.quartz.job.CronJob;
-import net.airvantage.sched.services.impl.JobSchedulingServiceImpl;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -28,9 +16,24 @@ import org.quartz.Scheduler;
 import org.quartz.Trigger;
 import org.quartz.TriggerKey;
 
+import net.airvantage.sched.TestUtils;
+import net.airvantage.sched.app.exceptions.AppException;
+import net.airvantage.sched.dao.JobConfigDao;
+import net.airvantage.sched.dao.JobLockDao;
+import net.airvantage.sched.dao.JobSchedulingDao;
+import net.airvantage.sched.dao.JobWakeupDao;
+import net.airvantage.sched.model.JobConfig;
+import net.airvantage.sched.model.JobDef;
+import net.airvantage.sched.model.JobScheduling;
+import net.airvantage.sched.model.JobWakeup;
+import net.airvantage.sched.quartz.job.CronJob;
+import net.airvantage.sched.services.impl.JobSchedulingServiceImpl;
+
 public class JobSchedulingServiceImplTest {
 
     private JobSchedulingServiceImpl service;
+
+    private static final String CRON_EXPR = "0 0 6 1 1/12 ? *";
 
     @Mock
     private Scheduler scheduler;
@@ -55,7 +58,7 @@ public class JobSchedulingServiceImplTest {
 
         MockitoAnnotations.initMocks(this);
         service = new JobSchedulingServiceImpl(scheduler, jobStateService, jobConfigDao, jobLockDao, jobSchedulingDao,
-                jobWakeupDao);
+                jobWakeupDao, CRON_EXPR);
     }
 
     @Test
@@ -64,7 +67,7 @@ public class JobSchedulingServiceImplTest {
         // INPUT
 
         String jobId = "jobid";
-        JobDef jobDef = TestUtils.cronJobDef(jobId, "0 0 6 1 1/12 ? *");
+        JobDef jobDef = TestUtils.cronJobDef(jobId, CRON_EXPR);
 
         // RUN
 

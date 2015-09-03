@@ -1,15 +1,13 @@
 package net.airvantage.sched.quartz.job;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import net.airvantage.sched.app.ServiceLocator;
-import net.airvantage.sched.dao.JobWakeupDao;
-import net.airvantage.sched.model.JobWakeup;
-import net.airvantage.sched.services.tech.JobExecutionHelper;
 
 import org.quartz.DisallowConcurrentExecution;
 import org.quartz.Job;
@@ -19,16 +17,21 @@ import org.quartz.JobKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.airvantage.sched.app.ServiceLocator;
+import net.airvantage.sched.dao.JobWakeupDao;
+import net.airvantage.sched.model.JobWakeup;
+import net.airvantage.sched.services.tech.JobExecutionHelper;
+
 @DisallowConcurrentExecution
 public class WakeupJob implements Job {
 
     private static final Logger LOG = LoggerFactory.getLogger(WakeupJob.class);
 
+    private static final int QUERY_LIMIT = 1_000;
+
     private JobExecutionHelper jobExecutionHelper;
     private JobWakeupDao jobWakeupDao;
-
-    private int threadPoolSize = 20;
-    private int maxQueueSize = 10_000;
+    private int threadPoolSize;
 
     // ------------------------------------------------- Constructors -------------------------------------------------
 
@@ -37,16 +40,14 @@ public class WakeupJob implements Job {
      */
     public WakeupJob() {
         this(ServiceLocator.getInstance().geJobExecutionHelper(), ServiceLocator.getInstance().getJobWakeupDao(),
-                ServiceLocator.getInstance().getWakeupJobThreadPoolSize(), ServiceLocator.getInstance().getWakeupJobMaxQueueSize());
+                ServiceLocator.getInstance().getWakeupJobThreadPoolSize());
     }
 
-    protected WakeupJob(JobExecutionHelper jobExecutionHelper, JobWakeupDao jobWakeupDao, int threadPoolSize,
-            int maxQueueSize) {
+    protected WakeupJob(JobExecutionHelper jobExecutionHelper, JobWakeupDao jobWakeupDao, int threadPoolSize) {
 
         this.jobExecutionHelper = jobExecutionHelper;
         this.jobWakeupDao = jobWakeupDao;
         this.threadPoolSize = threadPoolSize;
-        this.maxQueueSize = maxQueueSize;
     }
 
     // ------------------------------------------------- Public Methods -----------------------------------------------
@@ -59,26 +60,36 @@ public class WakeupJob implements Job {
         LOG.debug("execute : context={}", context);
 
         JobKey key = context.getJobDetail().getKey();
+
         try {
+            long now = System.currentTimeMillis();
+            ExecutorService executor = null;
+            boolean processing = true;
 
-            ExecutorService executor = this.buildExecutorService();
-            jobWakeupDao.iterate(0, System.currentTimeMillis(), (JobWakeup wakeup) -> {
+            while (processing) {
+                long start = System.currentTimeMillis();
+                List<JobWakeup> wakeups = jobWakeupDao.find(now, QUERY_LIMIT);
 
-                try {
-                    executor.execute(() -> {
-                        this.jobExecutionHelper.execute(wakeup);
-                    });
+                if (wakeups != null && !wakeups.isEmpty()) {
+                    // Create executor if needed
+                    if (executor == null) {
+                        executor = this.buildExecutorService();
+                    }
 
-                    return true;
+                    processWakeups(executor, wakeups);
 
-                } catch (RejectedExecutionException reex) {
-                    LOG.warn("The thread pool queue is full, remaining wake-ups will be processed later");
-                    return false;
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("{} wakeups have been processed in {} ms", wakeups.size(),
+                                (System.currentTimeMillis() - start));
+                    }
+                } else {
+                    processing = false;
                 }
-            });
+            }
 
-            executor.shutdown();
-            executor.awaitTermination(12, TimeUnit.HOURS);
+            if (executor != null) {
+                executor.shutdownNow();
+            }
 
         } catch (Exception ex) {
             LOG.error("Unable to execute WAKEUP job " + key, ex);
@@ -86,15 +97,39 @@ public class WakeupJob implements Job {
         }
     }
 
+    /**
+     * Process the list of {@link JobWakeup}.
+     */
+    private void processWakeups(ExecutorService executor, List<JobWakeup> wakeups) throws Exception {
+        List<Callable<Void>> callables = new ArrayList<>();
+        for (JobWakeup wakeup : wakeups) {
+            callables.add(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    jobExecutionHelper.execute(wakeup);
+                    return null;
+                }
+            });
+        }
+
+        List<Future<Void>> futures = executor.invokeAll(callables);
+        for (Future<Void> future : futures) {
+            // Wait for completion
+            future.get();
+        }
+    }
+
+    /**
+     * Returns an instance of {@link ExecutorService}
+     */
     private ExecutorService buildExecutorService() {
 
         ThreadPoolExecutor executor = new ThreadPoolExecutor(threadPoolSize, threadPoolSize, 0L, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(maxQueueSize));
+                new ArrayBlockingQueue<Runnable>(QUERY_LIMIT));
 
         // if the pool is full the submit call will throw a RejectedExecutionException
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
 
         return executor;
     }
-
 }
