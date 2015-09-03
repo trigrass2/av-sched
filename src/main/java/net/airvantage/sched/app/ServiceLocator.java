@@ -212,7 +212,7 @@ public class ServiceLocator {
     }
 
     public int getWakeupJobThreadPoolSize() {
-        return getConfigManager().get().getInt("av-sched.wakeup.job.thread.pool.size", 20);
+        return getConfigManager().get().getInt("av-sched.wakeup.job.thread.pool.size", 100);
     }
 
     public int getServletCnxPoolSize() {
