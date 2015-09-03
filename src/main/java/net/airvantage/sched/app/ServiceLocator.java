@@ -93,7 +93,7 @@ public class ServiceLocator {
     public JobSchedulingService getJobSchedulingService() {
         if (jobService == null) {
             jobService = new JobSchedulingServiceImpl(getScheduler(), getJobStateService(), getJobConfigDao(),
-                    getJobLockDao(), getJobSchedulingDao(), getJobWakeupDao());
+                    getJobLockDao(), getJobSchedulingDao(), getJobWakeupDao(), getWakeupJobCron());
         }
         return jobService;
     }
@@ -219,6 +219,7 @@ public class ServiceLocator {
     }
 
     public int getWakeupJobThreadPoolSize() {
+
         return getConfigManager().get().getInt(Keys.Io.OUT_THREAD_POOL_SIZE, 20);
     }
 
@@ -236,6 +237,10 @@ public class ServiceLocator {
 
     public int getDbCnxPoolMax() {
         return getConfigManager().get().getInt(Keys.Db.POOL_MAX, 100);
+    }
+
+    public String getWakeupJobCron() {
+        return getConfigManager().get().getString("av-sched.wakeup.job.cron", "0/10 * * * * ?");
     }
 
     // ---------------------------------------------------- Private Methods -------------------------------------------

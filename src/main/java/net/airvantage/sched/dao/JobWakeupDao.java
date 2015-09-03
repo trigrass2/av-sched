@@ -2,16 +2,18 @@ package net.airvantage.sched.dao;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.sql.DataSource;
+
+import net.airvantage.sched.app.exceptions.DaoRuntimeException;
+import net.airvantage.sched.model.JobWakeup;
 
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import net.airvantage.sched.app.exceptions.DaoRuntimeException;
-import net.airvantage.sched.model.JobWakeup;
 
 /**
  * DAO to manage the {@link JobWakeup} object model.
@@ -32,11 +34,18 @@ public class JobWakeupDao {
     public void persist(JobWakeup wakeup) throws DaoRuntimeException {
         LOG.debug("persist : wakeup={}", wakeup);
 
+        // Wakeup must not be scheduled in the past
+        long now = System.currentTimeMillis();
+        Long wakeupTime = wakeup.getWakeupTime();
+        if (wakeupTime == null || wakeupTime < now) {
+            wakeup.setWakeupTime(now);
+        }
+
         try {
-            queryRunner.update(
-                    "insert into sched_job_wakeups(id,wakeup_time,callback) values(?,?,?) on duplicate key update wakeup_time=?, callback=?",
-                    wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getWakeupTime(),
-                    wakeup.getCallback());
+            queryRunner
+                    .update("insert into sched_job_wakeups(id,wakeup_time,callback,retry_count) values(?,?,?,?) on duplicate key update wakeup_time=?, callback=?, retry_count=?",
+                            wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount(),
+                            wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount());
 
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
@@ -71,34 +80,32 @@ public class JobWakeupDao {
     }
 
     /**
-     * Iterate through the wake-ups matching the given temporal window.
+     * Returns the {@code limit} first wake-ups with a scheduled date before the specified date.
      */
-    public void iterate(long from, long to, JobWakeupHandler handler) throws DaoRuntimeException {
-        LOG.debug("iterate : from={}, to={}", from, to);
+    public List<JobWakeup> find(long to, int limit) throws DaoRuntimeException {
+        LOG.debug("find : to={}, limit={}", to, limit);
 
-        ResultSetHandler<Boolean> rsh = (ResultSet rs) -> {
+        ResultSetHandler<List<JobWakeup>> rsh = (ResultSet rs) -> {
 
-            boolean processing = true;
-            boolean next = rs.next();
+            List<JobWakeup> res = new ArrayList<>();
 
-            while (next && processing) {
-
+            while (rs.next()) {
                 JobWakeup wakeup = new JobWakeup();
                 wakeup.setId(rs.getString(1));
                 wakeup.setWakeupTime(rs.getLong(2));
                 wakeup.setCallback(rs.getString(3));
+                wakeup.setRetryCount(rs.getInt(4));
 
-                processing = handler.handle(wakeup);
-                next = rs.next();
+                res.add(wakeup);
             }
 
-            return next;
+            return res;
         };
 
         try {
-            queryRunner.query("select id, wakeup_time, callback from sched_job_wakeups "
-                    + "where wakeup_time >= ? and wakeup_time < ?", rsh, from, to);
-
+            return queryRunner
+                    .query("select id, wakeup_time, callback, retry_count from sched_job_wakeups where wakeup_time < ? LIMIT ?",
+                            rsh, to, limit);
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
         }
