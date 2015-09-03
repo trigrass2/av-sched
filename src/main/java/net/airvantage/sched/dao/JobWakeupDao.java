@@ -43,9 +43,9 @@ public class JobWakeupDao {
 
         try {
             queryRunner
-                    .update("insert into sched_job_wakeups(id,wakeup_time,callback,retry_count) values(?,?,?,?) on duplicate key update wakeup_time=?, callback=?",
+                    .update("insert into sched_job_wakeups(id,wakeup_time,callback,retry_count) values(?,?,?,?) on duplicate key update wakeup_time=?, callback=?, retry_count=?",
                             wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount(),
-                            wakeup.getWakeupTime(), wakeup.getCallback());
+                            wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount());
 
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
