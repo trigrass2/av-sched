@@ -2,18 +2,9 @@ package net.airvantage.sched.app;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Properties;
 
 import javax.sql.DataSource;
-
-import org.apache.commons.configuration.Configuration;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.quartz.JobListener;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
-import org.quartz.TriggerListener;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.app.exceptions.ServiceRuntimeException;
@@ -35,6 +26,22 @@ import net.airvantage.sched.services.impl.JobStateServiceImpl;
 import net.airvantage.sched.services.tech.JobExecutionHelper;
 import net.airvantage.sched.services.tech.RetryPolicyHelper;
 import net.airvantage.sched.tech.AutoRetryStrategyImpl;
+
+import org.apache.commons.dbcp2.ConnectionFactory;
+import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
+import org.apache.commons.dbcp2.PoolableConnection;
+import org.apache.commons.dbcp2.PoolableConnectionFactory;
+import org.apache.commons.dbcp2.PoolingDataSource;
+import org.apache.commons.pool2.ObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.quartz.JobListener;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.TriggerListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ServiceLocator {
 
@@ -150,8 +157,8 @@ public class ServiceLocator {
     public CloseableHttpClient getHttpClient() {
         if (httpClient == null) {
 
-            AutoRetryStrategyImpl retryStartegy = new AutoRetryStrategyImpl(5, 1000,
-                    new HashSet<Integer>(Arrays.asList(503, 504)));
+            AutoRetryStrategyImpl retryStartegy = new AutoRetryStrategyImpl(5, 1000, new HashSet<Integer>(
+                    Arrays.asList(503, 504)));
 
             int poolSize = this.getOutputCnxPoolSize();
 
@@ -197,7 +204,7 @@ public class ServiceLocator {
         return scheduler;
     }
 
-    // ---------------------------------------------------- Configuration ---------------------------------------------
+    // ------------------------------------------------- Deploy Configuration -----------------------------------------
 
     public String getSchedSecret() {
         return getConfigManager().get().getString("av-sched.secret");
@@ -208,15 +215,28 @@ public class ServiceLocator {
     }
 
     public int getOutputCnxPoolSize() {
-        return getConfigManager().get().getInt("av-sched.output.cnx.pool.size", 20);
+        return getConfigManager().get().getInt(Keys.Io.OUT_CNX_POOL_SIZE, 20);
     }
 
     public int getWakeupJobThreadPoolSize() {
-        return getConfigManager().get().getInt("av-sched.wakeup.job.thread.pool.size", 100);
+
+        return getConfigManager().get().getInt(Keys.Io.OUT_THREAD_POOL_SIZE, 20);
+    }
+
+    public int getWakeupJobMaxQueueSize() {
+        return getConfigManager().get().getInt(Keys.Io.OUT_THREAD_QUEUE_SIZE, 10_000);
     }
 
     public int getServletCnxPoolSize() {
-        return getConfigManager().get().getInt("av-sched.servlet.cnx.pool.size", 60);
+        return getConfigManager().get().getInt(Keys.Io.IN_CNX_POOL_SIZE, 60);
+    }
+
+    public int getDbCnxPoolMin() {
+        return getConfigManager().get().getInt(Keys.Db.POOL_MIN, 50);
+    }
+
+    public int getDbCnxPoolMax() {
+        return getConfigManager().get().getInt(Keys.Db.POOL_MAX, 100);
     }
 
     public String getWakeupJobCron() {
@@ -227,18 +247,31 @@ public class ServiceLocator {
 
     private DataSource getDataSource() {
         if (dataSource == null) {
-            Configuration config = getConfigManager().get();
-            com.mysql.jdbc.jdbc2.optional.MysqlConnectionPoolDataSource ds = new com.mysql.jdbc.jdbc2.optional.MysqlConnectionPoolDataSource();
-            ds.setServerName(config.getString(Keys.Db.SERVER));
-            ds.setPortNumber(config.getInt(Keys.Db.PORT));
-            ds.setDatabaseName(config.getString(Keys.Db.DB_NAME));
-            ds.setUser(config.getString(Keys.Db.USER));
-            ds.setPassword(config.getString(Keys.Db.PASSWORD));
-            // Attempt to fix https://github.com/AirVantage/av-sched/issues/6
-            ds.setAutoReconnect(true);
 
-            dataSource = ds;
+            String host = getConfigManager().get().getString(Keys.Db.SERVER);
+            int port = getConfigManager().get().getInt(Keys.Db.PORT);
+            String dbname = getConfigManager().get().getString(Keys.Db.DB_NAME);
+            String user = getConfigManager().get().getString(Keys.Db.USER);
+            String password = getConfigManager().get().getString(Keys.Db.PASSWORD);
+
+            Properties props = new Properties();
+            props.setProperty("user", user);
+            props.setProperty("password", password);
+            props.setProperty("initialSize", Integer.toString(getDbCnxPoolMin()));
+            props.setProperty("minIdle", Integer.toString(getDbCnxPoolMin()));
+            props.setProperty("maxTotal", Integer.toString(getDbCnxPoolMax()));
+            props.setProperty("defaultTransactionIsolation", "NONE");
+
+            String url = "jdbc:mysql://" + host + ":" + port + "/" + dbname + "?tcpKeepAlive=true";
+
+            ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(url, props);
+            PoolableConnectionFactory poolableConnectionFactory = new PoolableConnectionFactory(connectionFactory, null);
+            ObjectPool<PoolableConnection> connectionPool = new GenericObjectPool<>(poolableConnectionFactory);
+            poolableConnectionFactory.setPool(connectionPool);
+
+            dataSource = new PoolingDataSource<>(connectionPool);
         }
+
         return dataSource;
     }
 
