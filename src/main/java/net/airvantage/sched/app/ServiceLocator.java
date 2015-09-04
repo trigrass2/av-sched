@@ -232,7 +232,7 @@ public class ServiceLocator {
     }
 
     public int getDbCnxPoolMax() {
-        return getConfigManager().get().getInt(Keys.Db.POOL_MAX, 200);
+        return getConfigManager().get().getInt(Keys.Db.POOL_MAX, 100);
     }
 
     public String getWakeupJobCron() {
