@@ -6,6 +6,22 @@ import java.util.Properties;
 
 import javax.sql.DataSource;
 
+import org.apache.commons.dbcp2.ConnectionFactory;
+import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
+import org.apache.commons.dbcp2.PoolableConnection;
+import org.apache.commons.dbcp2.PoolableConnectionFactory;
+import org.apache.commons.dbcp2.PoolingDataSource;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.quartz.JobListener;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.TriggerListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.app.exceptions.ServiceRuntimeException;
 import net.airvantage.sched.app.mapper.JsonMapper;
@@ -26,21 +42,6 @@ import net.airvantage.sched.services.impl.JobStateServiceImpl;
 import net.airvantage.sched.services.tech.JobExecutionHelper;
 import net.airvantage.sched.services.tech.RetryPolicyHelper;
 import net.airvantage.sched.tech.AutoRetryStrategyImpl;
-
-import org.apache.commons.dbcp2.ConnectionFactory;
-import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
-import org.apache.commons.dbcp2.PoolableConnection;
-import org.apache.commons.dbcp2.PoolableConnectionFactory;
-import org.apache.commons.dbcp2.PoolingDataSource;
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.quartz.JobListener;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
-import org.quartz.TriggerListener;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ServiceLocator {
 
@@ -231,7 +232,7 @@ public class ServiceLocator {
     }
 
     public int getDbCnxPoolMax() {
-        return getConfigManager().get().getInt(Keys.Db.POOL_MAX, 100);
+        return getConfigManager().get().getInt(Keys.Db.POOL_MAX, 200);
     }
 
     public String getWakeupJobCron() {
@@ -252,16 +253,17 @@ public class ServiceLocator {
             Properties props = new Properties();
             props.setProperty("user", user);
             props.setProperty("password", password);
-            props.setProperty("initialSize", Integer.toString(getDbCnxPoolMin()));
-            props.setProperty("minIdle", Integer.toString(getDbCnxPoolMin()));
-            props.setProperty("maxTotal", Integer.toString(getDbCnxPoolMax()));
             props.setProperty("defaultTransactionIsolation", "NONE");
 
             String url = "jdbc:mysql://" + host + ":" + port + "/" + dbname + "?tcpKeepAlive=true";
 
+            GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
+            poolConfig.setMinIdle(getDbCnxPoolMin());
+            poolConfig.setMaxTotal(getDbCnxPoolMax());
+
             ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(url, props);
             PoolableConnectionFactory poolableConnectionFactory = new PoolableConnectionFactory(connectionFactory, null);
-            GenericObjectPool<PoolableConnection> connectionPool = new GenericObjectPool<>(poolableConnectionFactory);
+            GenericObjectPool<PoolableConnection> connectionPool = new GenericObjectPool<>(poolableConnectionFactory, poolConfig);
             poolableConnectionFactory.setPool(connectionPool);
 
             dataSource = new PoolingDataSource<>(connectionPool);
