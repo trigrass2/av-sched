@@ -6,22 +6,6 @@ import java.util.Properties;
 
 import javax.sql.DataSource;
 
-import org.apache.commons.dbcp2.ConnectionFactory;
-import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
-import org.apache.commons.dbcp2.PoolableConnection;
-import org.apache.commons.dbcp2.PoolableConnectionFactory;
-import org.apache.commons.dbcp2.PoolingDataSource;
-import org.apache.commons.pool2.ObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.quartz.JobListener;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
-import org.quartz.TriggerListener;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.app.exceptions.ServiceRuntimeException;
 import net.airvantage.sched.app.mapper.JsonMapper;
@@ -42,6 +26,21 @@ import net.airvantage.sched.services.impl.JobStateServiceImpl;
 import net.airvantage.sched.services.tech.JobExecutionHelper;
 import net.airvantage.sched.services.tech.RetryPolicyHelper;
 import net.airvantage.sched.tech.AutoRetryStrategyImpl;
+
+import org.apache.commons.dbcp2.ConnectionFactory;
+import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
+import org.apache.commons.dbcp2.PoolableConnection;
+import org.apache.commons.dbcp2.PoolableConnectionFactory;
+import org.apache.commons.dbcp2.PoolingDataSource;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.quartz.JobListener;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.TriggerListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ServiceLocator {
 
@@ -262,10 +261,12 @@ public class ServiceLocator {
 
             ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(url, props);
             PoolableConnectionFactory poolableConnectionFactory = new PoolableConnectionFactory(connectionFactory, null);
-            ObjectPool<PoolableConnection> connectionPool = new GenericObjectPool<>(poolableConnectionFactory);
+            GenericObjectPool<PoolableConnection> connectionPool = new GenericObjectPool<>(poolableConnectionFactory);
             poolableConnectionFactory.setPool(connectionPool);
 
             dataSource = new PoolingDataSource<>(connectionPool);
+
+            LOG.info("Starting wakeup datasource with maxTotal={}", connectionPool.getMaxTotal());
         }
 
         return dataSource;
