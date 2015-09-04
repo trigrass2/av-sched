@@ -47,7 +47,7 @@ public class ServiceLocator {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServiceLocator.class);
 
-    // Do not use everywhere, only in things like quartz jobs & servlets.
+    // Do not use everywhere, only in things like quartz jobs & servlets
     private static ServiceLocator instance;
 
     private ConfigurationManager configManager;
