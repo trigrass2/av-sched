@@ -6,6 +6,14 @@ import java.io.PushbackInputStream;
 import java.sql.SQLException;
 import java.util.Arrays;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.app.mapper.JsonMapper;
 import net.airvantage.sched.dao.JobConfigDao;
@@ -15,14 +23,6 @@ import net.airvantage.sched.model.PostHttpJobResult;
 import net.airvantage.sched.quartz.job.JobResult;
 import net.airvantage.sched.quartz.job.JobResult.CallbackStatus;
 import net.airvantage.sched.services.JobStateService;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class JobExecutionHelper {
 
@@ -168,18 +168,21 @@ public class JobExecutionHelper {
 
                 if (stream != null) {
                     try {
-                        
+
                         PostHttpJobResult content = jsonMapper.postHttpJobResult(stream);
                         if (content != null) {
-                            
+
                             if (content.getAck() != null) {
                                 result.setAck(content.getAck());
                             }
                             if (content.getRetry() != null) {
                                 result.setRetry(content.getRetry());
                             }
+                            if (content.getRetryDate() != null) {
+                                result.setRetryDate(content.getRetryDate());
+                            }
                         }
-                        
+
                     } finally {
                         stream.close();
                     }
