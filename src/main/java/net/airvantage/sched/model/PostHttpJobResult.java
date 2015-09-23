@@ -7,6 +7,7 @@ public class PostHttpJobResult {
 
     private Boolean ack;
     private Long retry;
+    private Long retryDate;
 
     public Boolean getAck() {
         return ack;
@@ -22,6 +23,14 @@ public class PostHttpJobResult {
 
     public void setRetry(Long retry) {
         this.retry = retry;
+    }
+
+    public Long getRetryDate() {
+        return retryDate;
+    }
+
+    public void setRetryDate(Long retryDate) {
+        this.retryDate = retryDate;
     }
 
 }

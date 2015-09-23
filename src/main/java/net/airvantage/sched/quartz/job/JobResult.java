@@ -10,6 +10,7 @@ public class JobResult {
     private String jobId;
     private boolean ack;
     private long retry; // this is a DELAY (not a timestamp)
+    private long retryDate; // this is a timestamp (not a DELAY)
 
     public String getJobId() {
         return jobId;
@@ -43,6 +44,14 @@ public class JobResult {
         this.retry = retry;
     }
 
+    public long getRetryDate() {
+        return retryDate;
+    }
+
+    public void setRetryDate(long retryDate) {
+        this.retryDate = retryDate;
+    }
+
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
@@ -54,6 +63,8 @@ public class JobResult {
         builder.append(ack);
         builder.append(", retry=");
         builder.append(retry);
+        builder.append(", retryDate=");
+        builder.append(retryDate);
         builder.append("]");
         return builder.toString();
     }

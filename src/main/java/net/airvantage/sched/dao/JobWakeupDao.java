@@ -34,18 +34,17 @@ public class JobWakeupDao {
     public void persist(JobWakeup wakeup) throws DaoRuntimeException {
         LOG.debug("persist : wakeup={}", wakeup);
 
-        // Wakeup must not be scheduled in the past
-        long now = System.currentTimeMillis();
+        // If the wakeup is in the past, it will be woken up immediately
         Long wakeupTime = wakeup.getWakeupTime();
-        if (wakeupTime == null || wakeupTime < now) {
-            wakeup.setWakeupTime(now);
+        if (wakeupTime == null) {
+            wakeup.setWakeupTime(System.currentTimeMillis());
         }
 
         try {
-            queryRunner
-                    .update("insert into sched_job_wakeups(id,wakeup_time,callback,retry_count) values(?,?,?,?) on duplicate key update wakeup_time=?, callback=?, retry_count=?",
-                            wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount(),
-                            wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount());
+            queryRunner.update(
+                    "insert into sched_job_wakeups(id,wakeup_time,callback,retry_count) values(?,?,?,?) on duplicate key update wakeup_time=?, callback=?, retry_count=?",
+                    wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount(),
+                    wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount());
 
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
@@ -103,9 +102,9 @@ public class JobWakeupDao {
         };
 
         try {
-            return queryRunner
-                    .query("select id, wakeup_time, callback, retry_count from sched_job_wakeups where wakeup_time < ? LIMIT ?",
-                            rsh, to, limit);
+            return queryRunner.query(
+                    "select id, wakeup_time, callback, retry_count from sched_job_wakeups where wakeup_time < ? LIMIT ?",
+                    rsh, to, limit);
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
         }
