@@ -87,13 +87,13 @@ public class RetryPolicyHelper {
             long now = System.currentTimeMillis();
             if (requestedRetryDate > now) {
                 // A retry date is specified
-                long wakeupTime = Math.max(requestedRetryDate, roundNextSecond(now + computeRetryDelay(retryCount)));
+                long wakeupTime = Math.max(requestedRetryDate, roundSecond(now + computeRetryDelay(retryCount)));
                 wakeup.setWakeupTime(wakeupTime);
 
             } else {
                 // A retry delay is specified
                 long retryDelay = Math.max(requestedRetryDelay, computeRetryDelay(retryCount));
-                wakeup.setWakeupTime(roundNextSecond(now + retryDelay));
+                wakeup.setWakeupTime(roundSecond(now + retryDelay));
             }
 
             LOG.trace("handleResult rescheduling : wakeup={}, result={}", wakeup, result);
@@ -121,8 +121,8 @@ public class RetryPolicyHelper {
         // TODO check the retry date is before the next cron trigger fire time
     }
 
-    private long roundNextSecond(long timestamp) {
-        return (timestamp / 1000) * 1000 + 1000;
+    private long roundSecond(long timestamp) {
+        return (timestamp / 1000) * 1000;
     }
 
     private long computeRetryDelay(int retryCount) {
