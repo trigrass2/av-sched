@@ -1,13 +1,6 @@
 package net.airvantage.sched.services;
 
-import net.airvantage.sched.TestUtils;
-import net.airvantage.sched.app.exceptions.AppException;
-import net.airvantage.sched.dao.JobWakeupDao;
-import net.airvantage.sched.model.JobState;
-import net.airvantage.sched.model.JobWakeup;
-import net.airvantage.sched.quartz.job.JobResult;
-import net.airvantage.sched.quartz.job.JobResult.CallbackStatus;
-import net.airvantage.sched.services.tech.RetryPolicyHelper;
+import static org.junit.Assert.*;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -17,15 +10,27 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import net.airvantage.sched.TestUtils;
+import net.airvantage.sched.app.exceptions.AppException;
+import net.airvantage.sched.dao.JobWakeupDao;
+import net.airvantage.sched.model.JobState;
+import net.airvantage.sched.model.JobWakeup;
+import net.airvantage.sched.quartz.job.JobResult;
+import net.airvantage.sched.quartz.job.JobResult.CallbackStatus;
+import net.airvantage.sched.services.tech.RetryPolicyHelper;
+
 public class RetryPolicyServiceImplTest {
 
     private RetryPolicyHelper service;
 
-    @Mock private JobWakeupDao jobWakeupDao;
+    @Mock
+    private JobWakeupDao jobWakeupDao;
 
-    @Mock private JobStateService jobStateService;
+    @Mock
+    private JobStateService jobStateService;
 
-    @Mock private JobSchedulingService jobSchedulingService;
+    @Mock
+    private JobSchedulingService jobSchedulingService;
 
     @Before
     public void setup() {
@@ -127,7 +132,47 @@ public class RetryPolicyServiceImplTest {
         Mockito.verify(jobWakeupDao).persist(captor.capture());
 
         JobWakeup actual = captor.getValue();
-        Assert.assertTrue((now + delay) <= actual.getWakeupTime());
+        assertNotNull(actual.getWakeupTime());
+        assertEquals((((now + delay) / 1000) * 1000), actual.getWakeupTime().longValue());
+    }
+
+    @Test
+    public void jobExecuted_wakeupJobRetryDate() throws AppException {
+
+        // INPUT
+
+        String jobId = "job.id";
+        String callback = "callback.url";
+
+        JobWakeup wakeup = new JobWakeup();
+        wakeup.setId(jobId);
+        wakeup.setWakeupTime(123l);
+        wakeup.setCallback(callback);
+
+        long now = System.currentTimeMillis();
+        long retryDate = now + 30_000L;
+
+        // MOCK
+
+        JobResult result = Mockito.mock(JobResult.class);
+
+        Mockito.when(result.getStatus()).thenReturn(CallbackStatus.SUCCESS);
+        Mockito.when(result.getJobId()).thenReturn(jobId);
+        Mockito.when(result.isAck()).thenReturn(false);
+        Mockito.when(result.getRetryDate()).thenReturn(retryDate);
+
+        // RUN
+
+        service.handleResult(wakeup, result);
+
+        // VERIFY
+
+        ArgumentCaptor<JobWakeup> captor = ArgumentCaptor.forClass(JobWakeup.class);
+        Mockito.verify(jobWakeupDao).persist(captor.capture());
+
+        JobWakeup actual = captor.getValue();
+        assertNotNull(actual.getWakeupTime());
+        assertEquals(retryDate, actual.getWakeupTime().longValue());
     }
 
     @Test
@@ -235,8 +280,8 @@ public class RetryPolicyServiceImplTest {
         Mockito.verify(jobWakeupDao).persist(captor.capture());
 
         JobWakeup actual = captor.getValue();
-        long wakeupTime = now + 1000L;
-        Assert.assertTrue(wakeupTime <= actual.getWakeupTime());
+        assertNotNull(actual.getWakeupTime());
+        assertEquals((((now + 1000L) / 1000) * 1000), actual.getWakeupTime().longValue());
     }
 
 }
