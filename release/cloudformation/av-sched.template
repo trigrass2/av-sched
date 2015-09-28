@@ -218,7 +218,7 @@
                 "Namespace"          : "AWS/ELB",
                 "Statistic"          : "Sum",
                 "Period"             : "60",
-                "EvaluationPeriods"  : "3",
+                "EvaluationPeriods"  : "5",
                 "Threshold"          : "3",
                 "AlarmActions"       : [ { "Ref": "AlarmSNSTopic" } ],
                 "Dimensions"         : [ { "Name": "LoadBalancerName", "Value": { "Ref": "AvSchedELB" }} ],
