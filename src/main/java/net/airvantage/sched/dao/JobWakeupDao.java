@@ -7,7 +7,6 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
-import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +21,10 @@ public class JobWakeupDao {
 
     private final static Logger LOG = LoggerFactory.getLogger(JobWakeupDao.class);
 
-    private QueryRunner queryRunner;
+    private QueryExecutor queryExecutor;
 
     public JobWakeupDao(DataSource dataSource) throws DaoRuntimeException {
-        this.queryRunner = new QueryRunner(dataSource);
+        this.queryExecutor = new QueryExecutor(dataSource);
     }
 
     /**
@@ -41,7 +40,7 @@ public class JobWakeupDao {
         }
 
         try {
-            queryRunner.update(
+            queryExecutor.update(
                     "insert into sched_job_wakeups(id,wakeup_time,callback,retry_count) values(?,?,?,?) on duplicate key update wakeup_time=?, callback=?, retry_count=?",
                     wakeup.getId(), wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount(),
                     wakeup.getWakeupTime(), wakeup.getCallback(), wakeup.getRetryCount());
@@ -58,7 +57,7 @@ public class JobWakeupDao {
         LOG.debug("delete : wakeupId={}", wakeupId);
 
         try {
-            queryRunner.update("delete from sched_job_wakeups where id=?", wakeupId);
+            queryExecutor.update("delete from sched_job_wakeups where id=?", wakeupId);
 
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
@@ -71,7 +70,7 @@ public class JobWakeupDao {
     public void deleteAll() throws DaoRuntimeException {
 
         try {
-            queryRunner.update("delete from sched_job_wakeups");
+            queryExecutor.update("delete from sched_job_wakeups");
 
         } catch (SQLException ex) {
             throw new DaoRuntimeException(ex);
@@ -102,7 +101,7 @@ public class JobWakeupDao {
         };
 
         try {
-            return queryRunner.query(
+            return queryExecutor.query(
                     "select id, wakeup_time, callback, retry_count from sched_job_wakeups where wakeup_time < ? LIMIT ?",
                     rsh, to, limit);
         } catch (SQLException ex) {

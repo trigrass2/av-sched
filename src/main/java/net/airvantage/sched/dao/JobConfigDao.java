@@ -7,12 +7,11 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
-import net.airvantage.sched.model.JobConfig;
-
-import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import net.airvantage.sched.model.JobConfig;
 
 /**
  * DAO to manage the {@link JobConfig} object model.
@@ -20,11 +19,11 @@ import org.slf4j.LoggerFactory;
 public class JobConfigDao {
 
     private Logger LOG = LoggerFactory.getLogger(JobConfigDao.class);
-    
-    private QueryRunner queryRunner;
+
+    private QueryExecutor queryExecutor;
 
     public JobConfigDao(DataSource dataSource) {
-        this.queryRunner = new QueryRunner(dataSource);
+        this.queryExecutor = new QueryExecutor(dataSource);
     }
 
     /**
@@ -35,16 +34,16 @@ public class JobConfigDao {
 
         try {
             if (this.find(config.getId()) == null) {
-                queryRunner.update("insert into sched_job_configs(id,url,timeout) values(?,?,?)", config.getId(),
+                queryExecutor.update("insert into sched_job_configs(id,url,timeout) values(?,?,?)", config.getId(),
                         config.getUrl(), config.getTimeout());
             }
-            
+
         } catch (SQLException sqlex) {
             // Hack to manage concurrent calls !
             // If this configuration already exists just ignore it
             if (!sqlex.getMessage().contains("Duplicate entry")) {
                 throw sqlex;
-                
+
             } else {
                 LOG.warn("Try to create an existing configuration : {}", sqlex.getMessage());
             }
@@ -56,7 +55,7 @@ public class JobConfigDao {
      */
     public void delete(String jobId) throws SQLException {
 
-        queryRunner.update("delete from sched_job_configs where id=?", jobId);
+        queryExecutor.update("delete from sched_job_configs where id=?", jobId);
     }
 
     /**
@@ -82,7 +81,7 @@ public class JobConfigDao {
             }
         };
 
-        return queryRunner.query("select id, url, timeout from sched_job_configs where id=?", rsh, id);
+        return queryExecutor.query("select id, url, timeout from sched_job_configs where id=?", rsh, id);
     }
 
     /**
@@ -108,7 +107,7 @@ public class JobConfigDao {
                 return map;
             }
         };
-        return queryRunner.query("select id,url,timeout from sched_job_configs", rsh);
+        return queryExecutor.query("select id,url,timeout from sched_job_configs", rsh);
 
     }
 
@@ -116,6 +115,6 @@ public class JobConfigDao {
      * Delete all the existing job configurations.
      */
     public void deleteAll() throws SQLException {
-        queryRunner.update("delete from sched_job_configs");
+        queryExecutor.update("delete from sched_job_configs");
     }
 }
