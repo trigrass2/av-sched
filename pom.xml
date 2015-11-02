@@ -227,7 +227,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <executable>./node_modules/.bin/gulp</executable>
+                    <executable>./node_modules/gulp/bin/gulp.js</executable>
                     <arguments>
                         <argument>clean</argument>
                         <argument>build</argument>

@@ -214,4 +214,56 @@ describe("av-sched", function() {
         });
     });
 
+
+    it("can update a job configuration", function() {
+        return sched.scheduleJobWithParams(state, "test-update-job-config", 5, secret, 30000, "http://a.fake.server.1")()
+            .then(function() {
+                return sched.getJob("test-update-job-config");
+            })
+            .then(function(jobs) {
+            	
+                assert.deepEqual({
+                    id: "test-update-job-config", 
+                    url: "http://a.fake.server.1",
+                    timeout: 30000
+                }, jobs[0].config);
+
+                assert.deepEqual({
+                    expired: false,
+                    locked: false,
+                    expiresAt: null
+                }, jobs[0].lock);
+
+                assert.equal("cron", jobs[0].scheduling.type);
+                assert.equal("0/5 0/1 * 1/1 * ? *", jobs[0].scheduling.value);
+                assert.notEqual(null, jobs[0].scheduling.startAt);
+            })
+            .then(sched.scheduleJobWithParams(state, "test-update-job-config", 10, secret, 60000, "http://a.fake.server.2"))
+            .then(function() {
+                return sched.getJob("test-update-job-config");
+            })
+            .then(function(jobs) {
+            	
+                assert.deepEqual({
+                    id: "test-update-job-config", 
+                    url: "http://a.fake.server.2",
+                    timeout: 60000
+                }, jobs[0].config);
+
+                assert.deepEqual({
+                    expired: false,
+                    locked: false,
+                    expiresAt: null
+                }, jobs[0].lock);
+
+                assert.equal("cron", jobs[0].scheduling.type);
+                assert.equal("0/10 0/1 * 1/1 * ? *", jobs[0].scheduling.value);
+                assert.notEqual(null, jobs[0].scheduling.startAt);
+            })
+            .then(sched.unscheduleJob(state, "test-update-job-config", secret, {
+                id: "test-update-job-config",
+                deleted: true
+            }));
+    });
+
 });
