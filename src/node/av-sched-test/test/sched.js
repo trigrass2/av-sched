@@ -80,6 +80,31 @@ var sched = {
 
     },
 
+    scheduleJobWithParams: function(state, id, interval, secret, timeout, url) {
+        return function() {
+            sched.log("Scheduling CRON job on port", state.port, "with id", id);
+            return rp({
+                uri: "http://localhost:8086/sched/api/job-def",
+                method: "POST",
+                headers: {
+                    "X-sched-secret": secret
+                },
+                body: JSON.stringify({
+                    config: {
+                        id: id,
+                        url: url,
+                        timeout: timeout
+                    },
+                    scheduling: {
+                        type: "cron",
+                        value: "0/" + interval + " 0/1 * 1/1 * ? *"
+                    }
+                })
+            });
+        };
+
+    },
+
     wakeupJob: function(state, id, date, timeout, secret) {
         return function() {
             sched.log("Scheduling WAKEUP job on port", state.port, "with id", id);

@@ -81,7 +81,7 @@ public class JobExecutionHelper {
                 LOG.warn("Try to executed a job {} without configuration", jobId);
             }
 
-        } catch (SQLException ex) {
+        } catch (Exception ex) {
             LOG.error("Unable to execute CRON job " + jobId, ex);
             throw new AppException("execute.job.error", Arrays.asList(jobId), ex);
         }

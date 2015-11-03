@@ -11,6 +11,7 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.airvantage.sched.app.exceptions.DaoRuntimeException;
 import net.airvantage.sched.model.JobConfig;
 
 /**
@@ -27,94 +28,112 @@ public class JobConfigDao {
     }
 
     /**
-     * Persist the given job configuration. If a config with the same id exists no update will be done (it's assumed
-     * equal).
+     * Persist the given job configuration. If a config with the same id exists it will be updated.
      */
-    public void persist(JobConfig config) throws SQLException {
+    public void persist(JobConfig config) throws DaoRuntimeException {
+        LOG.debug("persist : config={}", config);
 
         try {
-            if (this.find(config.getId()) == null) {
-                queryExecutor.update("insert into sched_job_configs(id,url,timeout) values(?,?,?)", config.getId(),
-                        config.getUrl(), config.getTimeout());
-            }
+            queryExecutor.update("insert into sched_job_configs(id, url, timeout) values(?, ?, ?) "
+                    + "on duplicate key update url=?, timeout=?", config.getId(), config.getUrl(), config.getTimeout(),
+                    config.getUrl(), config.getTimeout());
 
         } catch (SQLException sqlex) {
-            // Hack to manage concurrent calls !
-            // If this configuration already exists just ignore it
-            if (!sqlex.getMessage().contains("Duplicate entry")) {
-                throw sqlex;
-
-            } else {
-                LOG.warn("Try to create an existing configuration : {}", sqlex.getMessage());
-            }
+            throw new DaoRuntimeException(sqlex);
         }
     }
 
     /**
      * Delete the job configuration identified by the given identifier.
      */
-    public void delete(String jobId) throws SQLException {
+    public void delete(String confId) throws DaoRuntimeException {
+        LOG.debug("delete : confId={}", confId);
 
-        queryExecutor.update("delete from sched_job_configs where id=?", jobId);
+        try {
+            queryExecutor.update("delete from sched_job_configs where id=?", confId);
+
+        } catch (SQLException sqlex) {
+            throw new DaoRuntimeException(sqlex);
+        }
     }
 
     /**
      * Return the job configuration identified by the given identifier.
      */
-    public JobConfig find(String id) throws SQLException {
+    public JobConfig find(String confId) throws DaoRuntimeException {
+        LOG.debug("find : confId={}", confId);
 
-        ResultSetHandler<JobConfig> rsh = new ResultSetHandler<JobConfig>() {
-            @Override
-            public JobConfig handle(ResultSet rs) throws SQLException {
+        try {
+            ResultSetHandler<JobConfig> rsh = new ResultSetHandler<JobConfig>() {
+                @Override
+                public JobConfig handle(ResultSet rs) throws SQLException {
 
-                if (!rs.next()) {
-                    return null;
+                    if (!rs.next()) {
+                        return null;
+                    }
+
+                    JobConfig config = new JobConfig();
+                    config.setId((String) rs.getString(1));
+                    config.setUrl((String) rs.getString(2));
+                    config.setTimeout((Long) rs.getLong(3));
+
+                    return config;
+
                 }
+            };
 
-                JobConfig config = new JobConfig();
-                config.setId((String) rs.getString(1));
-                config.setUrl((String) rs.getString(2));
-                config.setTimeout((Long) rs.getLong(3));
+            return queryExecutor.query("select id, url, timeout from sched_job_configs where id=?", rsh, confId);
 
-                return config;
-
-            }
-        };
-
-        return queryExecutor.query("select id, url, timeout from sched_job_configs where id=?", rsh, id);
+        } catch (SQLException sqlex) {
+            throw new DaoRuntimeException(sqlex);
+        }
     }
 
     /**
      * Return all the existing job configurations grouped by their identifier.
      */
-    public Map<String, JobConfig> findAll() throws SQLException {
+    public Map<String, JobConfig> findAll() throws DaoRuntimeException {
+        LOG.debug("findAll");
 
-        ResultSetHandler<Map<String, JobConfig>> rsh = new ResultSetHandler<Map<String, JobConfig>>() {
-            @Override
-            public Map<String, JobConfig> handle(ResultSet rs) throws SQLException {
+        try {
+            ResultSetHandler<Map<String, JobConfig>> rsh = new ResultSetHandler<Map<String, JobConfig>>() {
+                @Override
+                public Map<String, JobConfig> handle(ResultSet rs) throws SQLException {
 
-                Map<String, JobConfig> map = new HashMap<String, JobConfig>();
+                    Map<String, JobConfig> map = new HashMap<String, JobConfig>();
 
-                while (rs.next()) {
-                    JobConfig config = new JobConfig();
-                    String id = (String) rs.getString(1);
-                    config.setId(id);
-                    config.setUrl((String) rs.getString(2));
-                    config.setTimeout((Long) rs.getLong(3));
-                    map.put(id, config);
+                    while (rs.next()) {
+                        JobConfig config = new JobConfig();
+                        String id = (String) rs.getString(1);
+                        config.setId(id);
+                        config.setUrl((String) rs.getString(2));
+                        config.setTimeout((Long) rs.getLong(3));
+                        map.put(id, config);
+                    }
+
+                    return map;
                 }
+            };
+            return queryExecutor.query("select id,url,timeout from sched_job_configs", rsh);
 
-                return map;
-            }
-        };
-        return queryExecutor.query("select id,url,timeout from sched_job_configs", rsh);
+        } catch (SQLException sqlex) {
+            throw new DaoRuntimeException(sqlex);
+        }
 
     }
 
     /**
      * Delete all the existing job configurations.
      */
-    public void deleteAll() throws SQLException {
-        queryExecutor.update("delete from sched_job_configs");
+    public void deleteAll() throws DaoRuntimeException {
+        LOG.debug("deleteAll");
+
+        try {
+            queryExecutor.update("delete from sched_job_configs");
+
+        } catch (SQLException sqlex) {
+            throw new DaoRuntimeException(sqlex);
+        }
     }
+
 }
