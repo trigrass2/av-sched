@@ -3,17 +3,14 @@ package net.airvantage.sched.services.tech;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
-import java.sql.SQLException;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import net.airvantage.sched.app.SchedSecretFilter;
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.app.mapper.JsonMapper;
 import net.airvantage.sched.dao.JobConfigDao;
@@ -24,25 +21,28 @@ import net.airvantage.sched.quartz.job.JobResult;
 import net.airvantage.sched.quartz.job.JobResult.CallbackStatus;
 import net.airvantage.sched.services.JobStateService;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class JobExecutionHelper {
 
     private static final Logger LOG = LoggerFactory.getLogger(JobExecutionHelper.class);
 
-    private static final int DEFAULT_REQUEST_TIMEOUT_MS = 60 * 1000;
-
     private RetryPolicyHelper retryPolicyHelper;
     private JobStateService jobStateService;
-    private CloseableHttpClient client;
+    private RemoteServiceConnector connector;
     private JobConfigDao jobConfigDao;
     private JsonMapper jsonMapper;
     private String schedSecret;
 
     // ------------------------------------------------- Constructors -------------------------------------------------
 
-    public JobExecutionHelper(JobStateService jobStateService, CloseableHttpClient client, String schedSecret,
+    public JobExecutionHelper(JobStateService jobStateService, RemoteServiceConnector connector, String schedSecret,
             JsonMapper jsonMapper, JobConfigDao jobConfigDao, RetryPolicyHelper retryPolicyHelper) {
 
-        this.client = client;
+        this.connector = connector;
         this.jsonMapper = jsonMapper;
         this.schedSecret = schedSecret;
         this.jobConfigDao = jobConfigDao;
@@ -118,42 +118,34 @@ public class JobExecutionHelper {
         JobResult result = null;
         try {
 
-            HttpPost request = this.buildRequest(url);
-            CloseableHttpResponse response = this.client.execute(request);
+            Map<String, String> headers = new HashMap<>();
+            headers.put(SchedSecretFilter.SCHED_SECRET_HEADER_NAME, schedSecret);
 
-            try {
-                if (response.getStatusLine().getStatusCode() == 200) {
-                    result = this.requestSuccess(jobId, response.getEntity());
+            CloseableHttpResponse response = this.connector.post(new URI(url), headers);
+            if (response != null) {
 
-                } else {
-                    LOG.warn("Post to {} returns HTTP {}.", url, response.getStatusLine().getStatusCode());
-                    result = this.requestFailure(jobId);
+                try {
+                    if (response.getStatusLine().getStatusCode() == HttpURLConnection.HTTP_OK) {
+                        result = this.requestSuccess(jobId, response.getEntity());
+
+                    } else {
+                        LOG.warn("Post to {} returns HTTP {}.", url, response.getStatusLine().getStatusCode());
+                    }
+
+                } finally {
+                    response.close();
                 }
-
-            } finally {
-                response.close();
             }
 
-        } catch (Exception e) {
-            LOG.error("Unable to post to url  (job " + jobId + ")", e);
+        } catch (Exception ex) {
+            LOG.error("Unable to post to url  (job " + jobId + ")", ex);
+        }
+
+        if (result == null) {
             result = this.requestFailure(jobId);
         }
 
         return result;
-    }
-
-    private HttpPost buildRequest(String url) {
-        LOG.debug("Will post to url", url);
-
-        HttpPost request = new HttpPost(url);
-        request.setHeader("X-Sched-secret", schedSecret);
-
-        RequestConfig rqCfg = RequestConfig.custom().setConnectTimeout(DEFAULT_REQUEST_TIMEOUT_MS)
-                .setConnectionRequestTimeout(DEFAULT_REQUEST_TIMEOUT_MS).build();
-
-        request.setConfig(rqCfg);
-
-        return request;
     }
 
     private JobResult requestSuccess(String jobId, HttpEntity entity) {

@@ -1,6 +1,7 @@
 package net.airvantage.sched.app.exceptions;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,12 @@ public class AppException extends Exception {
         super();
         this.error = error;
         this.params = params;
+    }
+    
+    public AppException(String error, String... params) {
+        super();
+        this.error = error;
+        this.params = Arrays.asList(params);
     }
     
     public AppException(String error) {

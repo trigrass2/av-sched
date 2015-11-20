@@ -2,7 +2,8 @@ package net.airvantage.sched.services.tech;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.net.URI;
+import java.util.Map;
 
 import net.airvantage.sched.app.mapper.JsonMapper;
 import net.airvantage.sched.dao.JobConfigDao;
@@ -15,8 +16,6 @@ import net.airvantage.sched.services.JobStateService;
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +39,7 @@ public class JobExecutionHelperTest {
     private JobStateService jobStateService;
 
     @Mock
-    private CloseableHttpClient client;
+    private RemoteServiceConnector connector;
 
     @Mock
     private JobConfigDao jobConfigDao;
@@ -54,17 +53,19 @@ public class JobExecutionHelperTest {
     public void setUp() {
 
         MockitoAnnotations.initMocks(this);
-        service = new JobExecutionHelper(jobStateService, client, schedSecret, jsonMapper, jobConfigDao,
+        service = new JobExecutionHelper(jobStateService, connector, schedSecret, jsonMapper, jobConfigDao,
                 retryPolicyHelper);
     }
 
     @Test
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testExecute_cronSuccess() throws Exception {
 
         // INPUT
 
         String jobId = "job.id";
-        String url = "job.url";
+        String callback = "http://callback.service.url";
+        URI url = new URI(callback);
 
         PostHttpJobResult callbackResult = new PostHttpJobResult();
         callbackResult.setAck(true);
@@ -75,13 +76,13 @@ public class JobExecutionHelperTest {
         JobConfig config = Mockito.mock(JobConfig.class);
 
         Mockito.when(jobConfigDao.find(Mockito.eq(jobId))).thenReturn(config);
-        Mockito.when(config.getUrl()).thenReturn(url);
+        Mockito.when(config.getUrl()).thenReturn(callback);
 
         CloseableHttpResponse response = Mockito.mock(CloseableHttpResponse.class);
         StatusLine statusLine = Mockito.mock(StatusLine.class);
         HttpEntity httpEntity = Mockito.mock(HttpEntity.class);
 
-        Mockito.when(client.execute(Mockito.any(HttpPost.class))).thenReturn(response);
+        Mockito.when(connector.post(Mockito.eq(url), Mockito.anyMap())).thenReturn(response);
         Mockito.when(response.getStatusLine()).thenReturn(statusLine);
         Mockito.when(response.getEntity()).thenReturn(httpEntity);
         Mockito.when(statusLine.getStatusCode()).thenReturn(200);
@@ -95,11 +96,10 @@ public class JobExecutionHelperTest {
 
         // VERIFY
 
-        ArgumentCaptor<HttpPost> captor = ArgumentCaptor.forClass(HttpPost.class);
-        Mockito.verify(client).execute(captor.capture());
-        List<HttpPost> posts = captor.getAllValues();
-        HttpPost post = posts.get(0);
-        Assert.assertEquals(schedSecret, post.getHeaders("X-Sched-Secret")[0].getValue());
+        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+        Mockito.verify(connector).post(Mockito.eq(url), captor.capture());
+        Map<String, String> headers = captor.getValue();
+        Assert.assertEquals(schedSecret, headers.get("X-Sched-secret"));
 
         Assert.assertEquals(JobResult.CallbackStatus.SUCCESS, result.getStatus());
         Assert.assertEquals(jobId, result.getJobId());
@@ -108,16 +108,18 @@ public class JobExecutionHelperTest {
     }
 
     @Test
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testExecute_wakeupSuccess() throws Exception {
 
         // INPUT
 
         String jobId = "job.id";
-        String url = "job.url";
+        String callback = "http://callback.service.url";
+        URI url = new URI(callback);
 
         JobWakeup wakeup = new JobWakeup();
         wakeup.setWakeupTime(System.currentTimeMillis());
-        wakeup.setCallback(url);
+        wakeup.setCallback(callback);
         wakeup.setId(jobId);
 
         PostHttpJobResult callbackResult = new PostHttpJobResult();
@@ -139,7 +141,7 @@ public class JobExecutionHelperTest {
         StatusLine statusLine = Mockito.mock(StatusLine.class);
         HttpEntity httpEntity = Mockito.mock(HttpEntity.class);
 
-        Mockito.when(client.execute(Mockito.any(HttpPost.class))).thenReturn(response);
+        Mockito.when(connector.post(Mockito.eq(url), Mockito.anyMap())).thenReturn(response);
         Mockito.when(response.getStatusLine()).thenReturn(statusLine);
         Mockito.when(response.getEntity()).thenReturn(httpEntity);
         Mockito.when(statusLine.getStatusCode()).thenReturn(200);
@@ -153,11 +155,10 @@ public class JobExecutionHelperTest {
 
         // VERIFY
 
-        ArgumentCaptor<HttpPost> captor = ArgumentCaptor.forClass(HttpPost.class);
-        Mockito.verify(client).execute(captor.capture());
-        List<HttpPost> posts = captor.getAllValues();
-        HttpPost post = posts.get(0);
-        Assert.assertEquals(schedSecret, post.getHeaders("X-Sched-Secret")[0].getValue());
+        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+        Mockito.verify(connector).post(Mockito.eq(url), captor.capture());
+        Map<String, String> headers = captor.getValue();
+        Assert.assertEquals(schedSecret, headers.get("X-Sched-secret"));
 
         Mockito.verify(retryPolicyHelper).handleResult(Mockito.eq(wakeup), Mockito.eq(result));
 
@@ -168,25 +169,27 @@ public class JobExecutionHelperTest {
     }
 
     @Test
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testExecute_cronFailure() throws Exception {
 
         // INPUT
 
         String jobId = "job.id";
-        String url = "job.url";
+        String callback = "http://callback.service.url";
+        URI url = new URI(callback);
 
         // MOCK
 
         JobConfig config = Mockito.mock(JobConfig.class);
 
         Mockito.when(jobConfigDao.find(Mockito.eq(jobId))).thenReturn(config);
-        Mockito.when(config.getUrl()).thenReturn(url);
+        Mockito.when(config.getUrl()).thenReturn(callback);
 
         CloseableHttpResponse response = Mockito.mock(CloseableHttpResponse.class);
         StatusLine statusLine = Mockito.mock(StatusLine.class);
         HttpEntity httpEntity = Mockito.mock(HttpEntity.class);
 
-        Mockito.when(client.execute(Mockito.any(HttpPost.class))).thenReturn(response);
+        Mockito.when(connector.post(Mockito.eq(url), Mockito.anyMap())).thenReturn(response);
         Mockito.when(response.getStatusLine()).thenReturn(statusLine);
         Mockito.when(response.getEntity()).thenReturn(httpEntity);
         Mockito.when(statusLine.getStatusCode()).thenReturn(500);
@@ -197,11 +200,10 @@ public class JobExecutionHelperTest {
 
         // VERIFY
 
-        ArgumentCaptor<HttpPost> captor = ArgumentCaptor.forClass(HttpPost.class);
-        Mockito.verify(client).execute(captor.capture());
-        List<HttpPost> posts = captor.getAllValues();
-        HttpPost post = posts.get(0);
-        Assert.assertEquals(schedSecret, post.getHeaders("X-Sched-Secret")[0].getValue());
+        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+        Mockito.verify(connector).post(Mockito.eq(url), captor.capture());
+        Map<String, String> headers = captor.getValue();
+        Assert.assertEquals(schedSecret, headers.get("X-Sched-secret"));
 
         Assert.assertEquals(JobResult.CallbackStatus.FAILURE, result.getStatus());
         Assert.assertEquals(jobId, result.getJobId());
@@ -209,16 +211,18 @@ public class JobExecutionHelperTest {
     }
 
     @Test
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testExecute_wakeupFailure() throws Exception {
 
         // INPUT
 
         String jobId = "job.id";
-        String url = "job.url";
+        String callback = "http://callback.service.url";
+        URI url = new URI(callback);
 
         JobWakeup wakeup = new JobWakeup();
         wakeup.setWakeupTime(System.currentTimeMillis());
-        wakeup.setCallback(url);
+        wakeup.setCallback(callback);
         wakeup.setId(jobId);
 
         // MOCK
@@ -236,7 +240,7 @@ public class JobExecutionHelperTest {
         StatusLine statusLine = Mockito.mock(StatusLine.class);
         HttpEntity httpEntity = Mockito.mock(HttpEntity.class);
 
-        Mockito.when(client.execute(Mockito.any(HttpPost.class))).thenReturn(response);
+        Mockito.when(connector.post(Mockito.eq(url), Mockito.anyMap())).thenReturn(response);
         Mockito.when(response.getStatusLine()).thenReturn(statusLine);
         Mockito.when(response.getEntity()).thenReturn(httpEntity);
         Mockito.when(statusLine.getStatusCode()).thenReturn(500);
@@ -247,11 +251,10 @@ public class JobExecutionHelperTest {
 
         // VERIFY
 
-        ArgumentCaptor<HttpPost> captor = ArgumentCaptor.forClass(HttpPost.class);
-        Mockito.verify(client).execute(captor.capture());
-        List<HttpPost> posts = captor.getAllValues();
-        HttpPost post = posts.get(0);
-        Assert.assertEquals(schedSecret, post.getHeaders("X-Sched-Secret")[0].getValue());
+        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+        Mockito.verify(connector).post(Mockito.eq(url), captor.capture());
+        Map<String, String> headers = captor.getValue();
+        Assert.assertEquals(schedSecret, headers.get("X-Sched-secret"));
 
         Mockito.verify(retryPolicyHelper).handleResult(Mockito.eq(wakeup), Mockito.eq(result));
 
@@ -261,21 +264,23 @@ public class JobExecutionHelperTest {
     }
 
     @Test
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testExecute_connRefuse() throws Exception {
 
         // INPUT
 
         String jobId = "job.id";
-        String url = "job.url";
+        String callback = "http://callback.service.url";
+        URI url = new URI(callback);
 
         // MOCK
 
         JobConfig config = Mockito.mock(JobConfig.class);
 
         Mockito.when(jobConfigDao.find(Mockito.eq(jobId))).thenReturn(config);
-        Mockito.when(config.getUrl()).thenReturn(url);
+        Mockito.when(config.getUrl()).thenReturn(callback);
 
-        Mockito.when(client.execute(Mockito.any(HttpPost.class))).thenThrow(new IOException("connection refuse"));
+        Mockito.when(connector.post(Mockito.eq(url), Mockito.anyMap())).thenThrow(new IOException("connection refuse"));
 
         // RUN
 
@@ -283,11 +288,45 @@ public class JobExecutionHelperTest {
 
         // VERIFY
 
-        ArgumentCaptor<HttpPost> captor = ArgumentCaptor.forClass(HttpPost.class);
-        Mockito.verify(client).execute(captor.capture());
-        List<HttpPost> posts = captor.getAllValues();
-        HttpPost post = posts.get(0);
-        Assert.assertEquals(schedSecret, post.getHeaders("X-Sched-Secret")[0].getValue());
+        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+        Mockito.verify(connector).post(Mockito.eq(url), captor.capture());
+        Map<String, String> headers = captor.getValue();
+        Assert.assertEquals(schedSecret, headers.get("X-Sched-secret"));
+
+        Assert.assertEquals(JobResult.CallbackStatus.FAILURE, result.getStatus());
+        Assert.assertEquals(jobId, result.getJobId());
+        Assert.assertFalse(result.isAck());
+    }
+
+    @Test
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testExecute_noResponse() throws Exception {
+
+        // INPUT
+
+        String jobId = "job.id";
+        String callback = "http://callback.service.url";
+        URI url = new URI(callback);
+
+        // MOCK
+
+        JobConfig config = Mockito.mock(JobConfig.class);
+
+        Mockito.when(jobConfigDao.find(Mockito.eq(jobId))).thenReturn(config);
+        Mockito.when(config.getUrl()).thenReturn(callback);
+
+        Mockito.when(connector.post(Mockito.eq(url), Mockito.anyMap())).thenReturn(null);
+
+        // RUN
+
+        JobResult result = service.execute(jobId);
+
+        // VERIFY
+
+        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+        Mockito.verify(connector).post(Mockito.eq(url), captor.capture());
+        Map<String, String> headers = captor.getValue();
+        Assert.assertEquals(schedSecret, headers.get("X-Sched-secret"));
 
         Assert.assertEquals(JobResult.CallbackStatus.FAILURE, result.getStatus());
         Assert.assertEquals(jobId, result.getJobId());
