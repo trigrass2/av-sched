@@ -1,26 +1,8 @@
 package net.airvantage.sched.app;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Properties;
 
 import javax.sql.DataSource;
-
-import org.apache.commons.dbcp2.ConnectionFactory;
-import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
-import org.apache.commons.dbcp2.PoolableConnection;
-import org.apache.commons.dbcp2.PoolableConnectionFactory;
-import org.apache.commons.dbcp2.PoolingDataSource;
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.quartz.JobListener;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
-import org.quartz.TriggerListener;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.airvantage.sched.app.exceptions.AppException;
 import net.airvantage.sched.app.exceptions.ServiceRuntimeException;
@@ -40,8 +22,24 @@ import net.airvantage.sched.services.JobStateService;
 import net.airvantage.sched.services.impl.JobSchedulingServiceImpl;
 import net.airvantage.sched.services.impl.JobStateServiceImpl;
 import net.airvantage.sched.services.tech.JobExecutionHelper;
+import net.airvantage.sched.services.tech.RemoteServiceConnector;
 import net.airvantage.sched.services.tech.RetryPolicyHelper;
-import net.airvantage.sched.tech.AutoRetryStrategyImpl;
+
+import org.apache.commons.dbcp2.ConnectionFactory;
+import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
+import org.apache.commons.dbcp2.PoolableConnection;
+import org.apache.commons.dbcp2.PoolableConnectionFactory;
+import org.apache.commons.dbcp2.PoolingDataSource;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.quartz.JobListener;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.TriggerListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ServiceLocator {
 
@@ -148,7 +146,9 @@ public class ServiceLocator {
 
     public JobExecutionHelper geJobExecutionHelper() {
         if (jobExecutionHelper == null) {
-            jobExecutionHelper = new JobExecutionHelper(getJobStateService(), getHttpClient(), getSchedSecret(),
+
+            RemoteServiceConnector connector = new RemoteServiceConnector(this.getHttpClient(), 7);
+            jobExecutionHelper = new JobExecutionHelper(getJobStateService(), connector, getSchedSecret(),
                     getJsonMapper(), getJobConfigDao(), getRetryPolicyHelper());
         }
         return jobExecutionHelper;
@@ -157,14 +157,10 @@ public class ServiceLocator {
     public CloseableHttpClient getHttpClient() {
         if (httpClient == null) {
 
-            AutoRetryStrategyImpl retryStartegy = new AutoRetryStrategyImpl(5, 1000, new HashSet<Integer>(
-                    Arrays.asList(503, 504)));
-
             int poolSize = this.getOutputCnxPoolSize();
 
             httpClient = HttpClientBuilder.create().disableContentCompression().setMaxConnPerRoute(poolSize)
-                    .setMaxConnTotal(poolSize * 2).evictExpiredConnections()
-                    .setServiceUnavailableRetryStrategy(retryStartegy).build();
+                    .setMaxConnTotal(poolSize * 2).evictExpiredConnections().build();
         }
         return httpClient;
     }
@@ -263,7 +259,8 @@ public class ServiceLocator {
 
             ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(url, props);
             PoolableConnectionFactory poolableConnectionFactory = new PoolableConnectionFactory(connectionFactory, null);
-            GenericObjectPool<PoolableConnection> connectionPool = new GenericObjectPool<>(poolableConnectionFactory, poolConfig);
+            GenericObjectPool<PoolableConnection> connectionPool = new GenericObjectPool<>(poolableConnectionFactory,
+                    poolConfig);
             poolableConnectionFactory.setPool(connectionPool);
 
             dataSource = new PoolingDataSource<>(connectionPool);
