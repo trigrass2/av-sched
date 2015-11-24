@@ -101,21 +101,33 @@ public class WakeupJob implements Job {
      * Process the list of {@link JobWakeup}.
      */
     private void processWakeups(ExecutorService executor, List<JobWakeup> wakeups) throws Exception {
-        List<Callable<Void>> callables = new ArrayList<>();
+
+        long lagSum = 0;
+        int count = wakeups.size();
+
+        List<Callable<Long>> callables = new ArrayList<>();
         for (JobWakeup wakeup : wakeups) {
-            callables.add(new Callable<Void>() {
+
+            callables.add(new Callable<Long>() {
                 @Override
-                public Void call() throws Exception {
+                public Long call() throws Exception {
+
+                    long start = System.currentTimeMillis();
                     jobExecutionHelper.execute(wakeup);
-                    return null;
+
+                    return start - wakeup.getWakeupTime();
                 }
             });
         }
 
-        List<Future<Void>> futures = executor.invokeAll(callables);
-        for (Future<Void> future : futures) {
-            // Wait for completion
-            future.get();
+        List<Future<Long>> futures = executor.invokeAll(callables);
+        for (Future<Long> future : futures) {
+            lagSum += future.get(); // Wait for completion
+        }
+
+        // Trace wakeups lag > 30 sec
+        if (lagSum / count / 1000 > 30) {
+            LOG.info("Wakeups processing stats : nb={}, lag={}s", count, lagSum / count / 1000);
         }
     }
 
